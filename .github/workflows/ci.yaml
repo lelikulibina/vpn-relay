@@ -31,6 +31,9 @@ jobs:
         run: cargo clippy  --all-targets
       - name: Unit tests
         run: cargo test --all-targets
+      - name: Print resolved Cargo.lock
+        if: always()
+        run: cat Cargo.lock
       - name: Upload resolved Cargo.lock
         if: always()
         uses: actions/upload-artifact@v4
