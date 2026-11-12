@@ -25,7 +25,7 @@
 ## Сборка
 
 ```sh
-cargo build --locked --release
+cargo build --release
 ```
 
 Проверка примера конфигурации:
@@ -55,7 +55,7 @@ sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --import wg0.c
 Unit-тесты:
 
 ```sh
-cargo test --locked
+cargo test
 ```
 
 Интеграционные проверки требуют Linux, root, network namespaces, TUN, nftables и iproute2:
