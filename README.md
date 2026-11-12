@@ -2,83 +2,113 @@
 
 **vpn-relay** — Linux daemon для маршрутизации IPv4-трафика между несколькими WireGuard и AmneziaWG туннелями на базе форка [BoringTun](https://github.com/lelikulibina/boringtun-awg).
 
-Проект вынесен в отдельный репозиторий. Реализация протокола WireGuard/AmneziaWG остаётся в `boringtun-awg`; этот репозиторий отвечает за управление туннелями, маршрутизацию, firewall и NAT.
+Репозиторий отвечает за управление TUN-интерфейсами, peer lifecycle, policy routing, nftables, NAT и forwarding. Реализация криптографического протокола находится в отдельном форке BoringTun.
 
 ## Возможности
 
-- Создание WG/AWG TUN-интерфейсов через типизированный API BoringTun (без UAPI-сокетов для управляемых daemon устройств).
-- IPv4 policy routing с приоритетами, source/destination CIDR selectors и multi-uplink.
-- nftables INPUT/OUTPUT/FORWARD isolation с fail-closed поведением и защитой от подмены managed-интерфейсов.
+- Создание WG/AWG TUN-интерфейсов через typed API BoringTun; UAPI-сокеты для управляемых daemon устройств не используются.
+- IPv4 policy routing: приоритеты, source/destination CIDR selectors и несколько uplink.
+- nftables INPUT/OUTPUT/FORWARD isolation с fail-closed поведением и привязкой правил к identity управляемых интерфейсов.
 - NAT: без трансляции, masquerade и статический SNAT.
-- Conntrack decision tracking, socket fwmarks для внешнего UDP-трафика WG/AWG.
-- Runtime reload firewall, routing, NAT и peer configuration.
-- Peer lifecycle, AllowedIPs ownership/handoff, durable forwarding journal и recovery.
-- IPv4 per-interface forwarding через rtnetlink с проверками identity интерфейса.
+- Conntrack decision tracking и отдельные socket fwmarks для внешнего UDP-трафика WG/AWG.
+- Runtime reload routing, firewall, NAT и peer configuration; отдельная операция замены peer set.
+- Peer lifecycle, AllowedIPs ownership/handoff, durable forwarding journal и восстановление после SIGKILL.
+- Управление IPv4 forwarding отдельных интерфейсов через rtnetlink с проверкой ifindex.
 - Rootful Podman deployment в отдельном network namespace.
 
 ## Поддержка IP и требования
 
-**Только IPv4.** `vpn-relay` не настраивает IPv6 transport, адреса, маршруты, NAT, forwarding или sysctl. IPv6-пакеты блокируются на управляемых TUN через nftables. Это не означает отключение IPv6 на всём хосте.
+**Поддерживается только IPv4.** Проект не настраивает IPv6 transport, адреса, маршруты, NAT, forwarding или sysctl. IPv6-пакеты блокируются на управляемых TUN через nftables; это не отключает IPv6 на хосте и не является поддержкой IPv6-туннелей.
 
-Требуется Linux, root или эквивалентные `CAP_NET_ADMIN`, `/dev/net/tun`, `nftables` и `iproute2`. Windows, rootless Podman и host-network deployment не поддерживаются.
+Требуется Linux, root или эквивалентные capabilities (в частности CAP_NET_ADMIN), /dev/net/tun, nftables и iproute2. Windows, rootless Podman и deployment с host network не поддерживаются.
 
-## Сборка
+## Сборка и запуск
 
-```sh
+~~~sh
 cargo build --release
-```
-
-Проверка примера конфигурации:
-
-```sh
 sudo install -d -m 0750 /etc/vpn-relay
 sudo install -m 0600 vpn-relay.example.toml /etc/vpn-relay/config.toml
 sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --check
-```
+~~~
 
-Замените примерные ключи и endpoint перед запуском:
+Пример содержит демонстрационные ключи и адреса. Перед запуском замените их на собственные значения:
 
-```sh
+~~~sh
 sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml
-```
+~~~
+
+Файл конфигурации содержит приватные ключи — храните его с ограниченными правами доступа.
+
+## Управление работающим daemon
+
+Команды управления обращаются к уже запущенному экземпляру в том же network namespace:
+
+~~~sh
+# Применить полный конфигурационный файл без перезапуска daemon
+sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --reload
+
+# Заменить peer set указанного интерфейса значениями из конфигурации
+sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --replace-peers wg-server
+~~~
 
 Импорт существующего WireGuard/AmneziaWG профиля:
 
-```sh
+~~~sh
 sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --import wg0.conf wg-primary
-```
+~~~
 
-Подробное описание reload, routing, NAT, forwarding и firewall находится в [документации nftables](docs/VPN_RELAY_NFTABLES.md).
+Для автоматической замены уже существующего интерфейса без интерактивного подтверждения добавьте --yes.
 
-## Тестирование
+## Конфигурация и архитектура
 
-Unit-тесты:
+Полный пример поддерживаемой конфигурации — [vpn-relay.example.toml](vpn-relay.example.toml). Отдельная копия в examples/ удалена, чтобы не поддерживать два расходящихся источника истины.
 
-```sh
-cargo test
-```
+Подробное описание packet path, nftables hooks, policy routing, NAT, conntrack marks, IPv6 isolation, peer identity и lifecycle ресурсов находится в [документации nftables](docs/VPN_RELAY_NFTABLES.md).
 
-Интеграционные проверки требуют Linux, root, network namespaces, TUN, nftables и iproute2:
+## Проверки
 
-```sh
+Базовые проверки качества:
+
+~~~sh
+cargo fmt --all --check
+cargo check --locked --all-targets
+cargo clippy --locked --all-targets
+cargo test --locked --all-targets
+~~~
+
+Интеграционные сценарии требуют Linux, root, network namespaces, TUN, nftables и iproute2. Запускать из корня репозитория после cargo build:
+
+~~~sh
 sudo bash scripts/vpn-relay-netns-test.sh
 sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh
 sudo bash scripts/vpn-relay-per-interface-forwarding-packet-test.sh
 sudo bash scripts/vpn-relay-peer-traffic-test.sh wg
 sudo bash scripts/vpn-relay-peer-traffic-test.sh awg
 sudo bash scripts/vpn-relay-multi-uplink-test.sh
-```
+~~~
 
-Для контейнерного smoke test используется rootful Podman:
+Сценарии проверяют разные уровни системы: namespace-тест охватывает startup/reload/rollback и владение системными ресурсами; два per-interface теста отдельно проверяют lifecycle/sysctl recovery и реальную передачу пакетов; peer traffic запускается для WG и AWG; multi-uplink проверяет выбор uplink, selectors и NAT.
 
-```sh
+Для контейнерного smoke test используется rootful Podman. Команды соответствуют CI и требуют bridge network:
+
+~~~sh
 cargo build
 sudo podman build -f scripts/vpn-relay-podman.Containerfile -t vpn-relay-podman-test .
-```
+host_netns_inode="$(stat -Lc '%i' /proc/self/ns/net)"
+sudo podman run --rm --network bridge --cap-add NET_ADMIN \
+  --device /dev/net/tun:/dev/net/tun \
+  --sysctl net.ipv4.ip_forward=1 \
+  --sysctl net.ipv4.conf.lo.forwarding=0 \
+  --sysctl net.ipv4.conf.eth0.forwarding=0 \
+  --env HOST_NETNS_INODE="$host_netns_inode" \
+  vpn-relay-podman-test
+~~~
+
+CI дополнительно проверяет совместимость per-interface forwarding на Ubuntu 22.04 и 24.04. Полный набор CI job описан в [ci.yaml](.github/workflows/ci.yaml).
 
 ## Зависимость BoringTun
 
-`boringtun` подключается напрямую из [lelikulibina/boringtun-awg](https://github.com/lelikulibina/boringtun-awg) по зафиксированному Git commit. Это важно: проект использует AWG-расширения и typed device API форка, которых может не быть в опубликованной версии crates.io.
+boringtun подключается напрямую из [lelikulibina/boringtun-awg](https://github.com/lelikulibina/boringtun-awg) по зафиксированному Git commit. Это необходимо для AWG-расширений и typed device API форка, которых может не быть в опубликованной версии crates.io.
 
 ## Лицензия
 
