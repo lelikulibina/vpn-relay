@@ -251,12 +251,6 @@ packet-level ingress тест уже выполнен.
 конфигурации vpn-relay. Сам каталог `boringtun/` в рамках этого изменения
 не затрагивается.
 
-Peer-level source validation относится к tunnel backend и его AllowedIPs
-механизму. Нельзя строить утверждение о peer isolation только на nftables
-правилах по IP. Если понадобится политика, различающая peers одного TUN,
-backend должен экспортировать проверенную peer identity или разделять peers
-по отдельным интерфейсам/изоляционным доменам. Текущая модель не делает вид,
-что nftables может восстановить эту identity после декапсуляции.
 
 ## Владение ресурсами и lifecycle
 
@@ -299,11 +293,46 @@ daemon-written value. Старые или неподдерживаемые ве�
 
 ## Проверки и ограничения
 
-Unit tests проверяют валидацию, детерминированную генерацию, mark allocation,
-ownership identity и основные nft expressions. Network namespace scripts
-проверяют фактические WG/AWG пакеты, INPUT/OUTPUT allow/deny, multi-uplink,
-source/destination selectors и NAT. CI остаётся обязательным критерием:
-сгенерированный script сам по себе не доказывает packet-level поведение.
+Локальные Rust-тесты запускаются командой cargo test --locked --all-targets.
+Они покрывают конфигурацию и импорт профилей, построение routing plan и
+nftables rules, выделение mark space, проверку ownership, rtnetlink,
+forwarding journal, control socket, rollback и BoringTun backend.
+
+Интеграционные сценарии в scripts/ разделены по назначению:
+
+- vpn-relay-netns-test.sh — namespace lifecycle, конфликтующие/чужие
+  nftables и iproute2 ресурсы, startup rollback, fail-closed recovery и
+  runtime reload с fault injection.
+- vpn-relay-peer-traffic-test.sh wg|awg — реальные двунаправленные
+  ICMP/TCP/UDP пакеты, INPUT/OUTPUT allow/deny, socket mark routing,
+  reconnect и peer AllowedIPs update.
+- vpn-relay-multi-uplink-test.sh — выбор uplink по selectors/priority,
+  NAT, live policy changes и peer ownership/handoff.
+- vpn-relay-per-interface-forwarding-test.sh — sysctl ownership,
+  unmanaged-link isolation, drift detection, graceful restore и SIGKILL
+  journal recovery.
+- vpn-relay-per-interface-forwarding-packet-test.sh — реальный packet
+  forwarding и IPv6 drop на managed TUN.
+- vpn-relay-podman-container-test.sh — отдельный rootful Podman
+  network namespace, capabilities, TUN, nftables и восстановление sysctl.
+
+Два per-interface forwarding сценария не дублируют друг друга: первый
+проверяет управление состоянием и восстановление, второй — прохождение
+пакетов. Peer traffic запускается отдельно для WG и AWG, поскольку оба
+backend должны проходить один и тот же datapath acceptance test.
+
+В CI нет отдельного набора Rust-тестов с атрибутом #[ignore]; поэтому
+запуск cargo test -- --ignored не нужен и не должен использоваться как
+самостоятельный CI этап. Интеграционные проверки запускаются явными
+скриптами. CI выполняет per-interface state/packet tests на Ubuntu 22.04 и
+24.04, остальные namespace tests и Podman smoke test — на Ubuntu 24.04.
+
+Packet-level IPv6 coverage намеренно ограничена: реальные пакеты и nft
+counters проверяют drop в output и forward при выборе managed TUN как egress.
+PREROUTING drop для managed-TUN ingress проверяется по сгенерированному
+ruleset и unit assertions; отдельный packet-level ingress probe не заявлен.
+Это соответствует IPv4-only модели: IPv6 peers/AllowedIPs и IPv6 transport
+не поддерживаются.
 
 Не следует считать peer-level isolation завершённой только на основании
 interface-level selectors. Также необходимо продолжать проверять rollback
