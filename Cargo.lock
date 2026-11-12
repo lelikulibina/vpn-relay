@@ -65,7 +65,7 @@ dependencies = [
 [[package]]
 name = "boringtun"
 version = "0.7.1"
-source = "git+https://github.com/lelikulibina/boringtun-awg?rev=7c0abfab5b004f39e737be94efc84a39623d8e26#7c0abfab5b004f39e737be94efc84a39623d8e26"
+source = "git+https://github.com/lelikulibina/boringtun-awg?rev=f582d808b4ee8cc0b689629f2ed5a26dc2555c96#f582d808b4ee8cc0b689629f2ed5a26dc2555c96"
 dependencies = [
  "aead",
  "aes",
