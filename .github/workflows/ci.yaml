@@ -1,0 +1,108 @@
+name: vpn-relay CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Format, check, clippy and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Check
+        run: cargo check --locked --all-targets
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Unit tests
+        run: cargo test --locked --all-targets
+
+  kernel-compatibility:
+    name: Kernel compatibility (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install networking tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iproute2 nftables iputils-ping
+      - name: Build daemon
+        run: cargo build --locked
+      - name: Per-interface forwarding ACK, readback and recovery
+        run: sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh
+      - name: Packet forwarding and IPv6 drop on managed TUN
+        run: sudo bash scripts/vpn-relay-per-interface-forwarding-packet-test.sh
+
+  integration:
+    name: Network namespace integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install networking tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y iproute2 nftables iputils-ping tcpdump
+      - name: Build daemon
+        run: cargo build --locked
+      - name: Run ignored integration tests
+        run: sudo timeout --signal=TERM --kill-after=30s 15m cargo test --locked -- --ignored
+      - name: Validate example configuration
+        run: cargo run --locked -- --config vpn-relay.example.toml --check
+      - name: Network namespace routing/firewall/NAT test
+        run: sudo bash scripts/vpn-relay-netns-test.sh
+      - name: WireGuard peer traffic
+        run: sudo bash scripts/vpn-relay-peer-traffic-test.sh wg
+      - name: AmneziaWG peer traffic
+        run: sudo bash scripts/vpn-relay-peer-traffic-test.sh awg
+      - name: Multi-uplink packet test
+        run: sudo bash scripts/vpn-relay-multi-uplink-test.sh
+
+  podman:
+    name: Rootful Podman deployment
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build daemon
+        run: cargo build --locked
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          sudo podman network exists podman || sudo podman network create podman
+      - name: Build smoke-test image
+        run: sudo podman build -f scripts/vpn-relay-podman.Containerfile -t vpn-relay-podman-test .
+      - name: Verify private namespace and least-privilege deployment
+        run: |
+          host_netns_inode="$(stat -Lc '%i' /proc/self/ns/net)"
+          sudo podman run --rm --network bridge --cap-add NET_ADMIN \
+            --device /dev/net/tun:/dev/net/tun \
+            --sysctl net.ipv4.ip_forward=1 \
+            --sysctl net.ipv4.conf.lo.forwarding=0 \
+            --sysctl net.ipv4.conf.eth0.forwarding=0 \
+            --env HOST_NETNS_INODE="$host_netns_inode" \
+            vpn-relay-podman-test
