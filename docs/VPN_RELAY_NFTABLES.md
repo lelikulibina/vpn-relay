@@ -226,8 +226,9 @@ TUN. Физические интерфейсы и UDP-сокеты BoringTun э�
 
 `vpn-relay` не создаёт IPv6 адреса или маршруты, не вызывает `ip -6`,
 не создаёт IPv6 policy rules/NAT и не читает, не изменяет и не восстанавливает
-IPv6 sysctl. `boringtun/` остаётся неизменённым; IPv4-only ограничение
-реализовано на уровне конфигурации, маршрутизации и firewall `vpn-relay`.
+IPv6 sysctl. Внешняя зависимость `boringtun-awg` не модифицируется этим
+репозиторием; IPv4-only ограничение реализовано на уровне конфигурации,
+маршрутизации и firewall `vpn-relay`.
 
 **Граница packet-level coverage для IPv6:** реальные пакеты и nft counters
 проверяют drop в output и forward при выборе managed TUN как egress.
@@ -248,8 +249,8 @@ packet-level ingress тест уже выполнен.
 
 Внутренняя source-IP validation BoringTun после декапсуляции остаётся
 без изменений. Она относится к tunnel backend, а не к IPv4-only модели
-конфигурации vpn-relay. Сам каталог `boringtun/` в рамках этого изменения
-не затрагивается.
+конфигурации vpn-relay. Исходный код внешней зависимости `boringtun-awg`
+этим репозиторием не изменяется.
 
 
 ## Владение ресурсами и lifecycle
