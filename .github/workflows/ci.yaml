@@ -63,7 +63,7 @@ jobs:
       - name: Install networking tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y iproute2 nftables iputils-ping tcpdump
+          sudo apt-get install -y iproute2 nftables iputils-ping tcpdump iperf3
       - name: Build daemon
         run: cargo build --locked 
       - name: Run ignored integration tests
