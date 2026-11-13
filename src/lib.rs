@@ -19,4 +19,4 @@ pub use config::{
 };
 pub use routing::{EgressPlan, RoutingDecision, RoutingPlan};
 #[cfg(target_os = "linux")]
-pub use runtime::{Runtime, RuntimeError};
+pub use runtime::{InterfaceStats, PeerStats, Runtime, RuntimeError};
