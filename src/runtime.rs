@@ -522,6 +522,7 @@ impl Runtime {
     /// Start all interfaces through their registered backend, then install
     /// shared routing only after every tunnel has been configured.
     pub fn start(config: Config) -> Result<Self, RuntimeError> {
+        install_signal_handlers()?;
         config
             .validate()
             .map_err(|error| RuntimeError::Configuration(error.to_string()))?;
@@ -1144,7 +1145,6 @@ impl Runtime {
 
     /// Keep the daemon alive and stop cleanly on SIGINT/SIGTERM.
     pub fn run(mut self) -> Result<(), RuntimeError> {
-        install_signal_handlers()?;
         while !SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
             self.verify_tunnel_identities()?;
             self.accept_control_connections();
