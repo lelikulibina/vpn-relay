@@ -371,3 +371,33 @@ fn truncate(value: &str, max_chars: usize) -> String {
 
 #[cfg(target_os = "linux")]
 use std::os::fd::FromRawFd;
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn byte_counts_use_readable_decimal_units() {
+        assert_eq!(format_bytes(0), "0 B");
+        assert_eq!(format_bytes(999), "999 B");
+        assert_eq!(format_bytes(1_000), "1.00 KB");
+        assert_eq!(format_bytes(1_500_000), "1.50 MB");
+        assert_eq!(format_bytes(1_000_000_000), "1.00 GB");
+    }
+
+    #[test]
+    fn handshake_age_is_human_readable() {
+        assert_eq!(format_handshake(None), "никогда");
+        assert_eq!(format_handshake(Some(42)), "42с назад");
+        assert_eq!(format_handshake(Some(120)), "2м назад");
+        assert_eq!(format_handshake(Some(7_200)), "2ч назад");
+        assert_eq!(format_handshake(Some(172_800)), "2д назад");
+    }
+
+    #[test]
+    fn table_cells_are_truncated_without_panicking() {
+        assert_eq!(truncate("short", 10), "short");
+        assert_eq!(truncate("abcdefgh", 5), "abcd…");
+        assert_eq!(truncate("10.0.0.2/32", 1), "…");
+    }
+}
