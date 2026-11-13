@@ -98,7 +98,7 @@ socket_fwmark = 4097
 
 [[interfaces.wg-server.peers]]
 public_key = "pOCSkrZRwni5dyxWn1+puxPZBrRqtoyd+dwrRAn4ogk="
-allowed_ips = ["10.10.0.2/32"]
+allowed_ips = ["10.10.0.4/32"]
 endpoint = "198.51.100.10:51820"
 
 [interfaces.awg-primary]
@@ -558,7 +558,7 @@ for _ in $(seq 1 30); do
 done
 [[ $ready -eq 1 ]] || fail "background daemon did not finish startup"
 background_stats="$(ip netns exec "$NS" "$BIN" --stats)"
-grep -Fq "10.10.0.2/32" <<<"$background_stats" || fail "on-demand statistics omitted the client's AllowedIPs"
+grep -Fq "10.10.0.4/32" <<<"$background_stats" || fail "on-demand statistics omitted the client's AllowedIPs"
 grep -Fq "198.51.100.10:51820" <<<"$background_stats" || fail "on-demand statistics omitted the peer endpoint"
 grep -Fq "Получено" <<<"$background_stats" || fail "statistics table omitted received-byte column"
 grep -Fq "Отправлено" <<<"$background_stats" || fail "statistics table omitted sent-byte column"
