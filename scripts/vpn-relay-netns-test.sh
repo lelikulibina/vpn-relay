@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 fail() {
     echo "vpn-relay namespace test: $*" >&2
-    for log in "$TMP/bootstrap-nft-failure.log" "$TMP/indexed-nft-failure.log" "$TMP/startup-route-rollback-failure.log" "$TMP/startup-nft-cleanup-ip-commands.log" "$TMP/startup-route-rollback-ip.log" "$TMP/startup-route-rollback-route-after.txt" "$TMP/startup-route-rollback-routes-all.txt" "$TMP/startup-nft-cleanup-failure.log" "$TMP/daemon.log" "$TMP/conflict.log" "$TMP/policy-conflict.log" "$TMP/route-conflict.log" "$TMP/policy-shadow-conflict.log" "$TMP/partial-setup-conflict.log" "${TMP}/partial-interface-config.log" "$TMP/partial-interface-mtu.log" "$TMP/partial-policy-route.log" "$TMP/partial-forwarding.log" "$TMP/partial-ipv4-forwarding.log" "$TMP/partial-ipv4-forwarding-restore-failure.log" "$TMP/startup-forwarding-route-cleanup-failure.log" "$TMP/reload-failure.log" "$TMP/reload-dns-failure.log" "$TMP/reload-route-failure.log" "$TMP/reload-immutable.log" "$TMP/shutdown-cleanup-failure.log" "$TMP/shutdown-forwarding-restore-failure.log" "$TMP/preexisting-forwarding.log" "$TMP/fail-route-commands.log" "$TMP/forwarding-management-disabled.log" "$TMP/tun-identity-loss.log"; do
+    for log in "$TMP/bootstrap-nft-failure.log" "$TMP/indexed-nft-failure.log" "$TMP/startup-route-rollback-failure.log" "$TMP/startup-route-rollback-tracing.log" "$TMP/daemon-tracing.log" "$TMP/crash-restart-tracing.log" "$TMP/shutdown-cleanup-tracing.log" "$TMP/shutdown-forwarding-restore-tracing.log" "$TMP/tun-identity-loss-tracing.log" "$TMP/startup-nft-cleanup-ip-commands.log" "$TMP/startup-route-rollback-ip.log" "$TMP/startup-route-rollback-route-after.txt" "$TMP/startup-route-rollback-routes-all.txt" "$TMP/startup-nft-cleanup-failure.log" "$TMP/daemon.log" "$TMP/conflict.log" "$TMP/policy-conflict.log" "$TMP/route-conflict.log" "$TMP/policy-shadow-conflict.log" "$TMP/partial-setup-conflict.log" "${TMP}/partial-interface-config.log" "$TMP/partial-interface-mtu.log" "$TMP/partial-policy-route.log" "$TMP/partial-forwarding.log" "$TMP/partial-ipv4-forwarding.log" "$TMP/partial-ipv4-forwarding-restore-failure.log" "$TMP/startup-forwarding-route-cleanup-failure.log" "$TMP/reload-failure.log" "$TMP/reload-dns-failure.log" "$TMP/reload-route-failure.log" "$TMP/reload-immutable.log" "$TMP/shutdown-cleanup-failure.log" "$TMP/shutdown-forwarding-restore-failure.log" "$TMP/preexisting-forwarding.log" "$TMP/fail-route-commands.log" "$TMP/forwarding-management-disabled.log" "$TMP/tun-identity-loss.log"; do
         if [[ -f "$log" ]]; then
             cat "$log" >&2
         fi
@@ -43,9 +43,9 @@ expect_startup_failure() {
     local description="$2"
     local path_prefix="${3:-}"
     if [[ -n "$path_prefix" ]]; then
-        ip netns exec "$NS" env PATH="$path_prefix:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/$log" 2>&1 &
+        ip netns exec "$NS" env PATH="$path_prefix:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/$log.tracing" >"$TMP/$log" 2>&1 &
     else
-        ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" >"$TMP/$log" 2>&1 &
+        ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" --log "$TMP/$log.tracing" >"$TMP/$log" 2>&1 &
     fi
     DAEMON_PID=$!
     for _ in $(seq 1 30); do
@@ -432,12 +432,12 @@ fi
 exec "$REAL_IP" "\$@"
 EOF
 chmod +x "$TMP/fail-route-rollback/ip"
-if ip netns exec "$NS" env PATH="$TMP/fail-route-rollback:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/startup-route-rollback-failure.log" 2>&1; then
+if ip netns exec "$NS" env PATH="$TMP/fail-route-rollback:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/startup-route-rollback-tracing.log" >"$TMP/startup-route-rollback-failure.log" 2>&1; then
     fail "daemon accepted policy-route installation and rollback failures"
 fi
 grep -Fq "injected second-egress IPv4 policy-route installation failure before rollback" "$TMP/startup-route-rollback-failure.log" || fail "second-egress policy-route installation failure was not observed"
 grep -Fq "injected IPv4 policy-route rollback failure" "$TMP/startup-route-rollback-failure.log" || fail "startup policy-route rollback failure was not observed"
-grep -Fq "startup policy-routing rollback failed; retaining nftables policy" "$TMP/startup-route-rollback-failure.log" || fail "startup did not retain firewall after policy-route rollback failure"
+grep -Fq "startup policy-routing rollback failed; retaining nftables policy" "$TMP/startup-route-rollback-tracing.log" || fail "startup did not retain firewall after policy-route rollback failure"
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 || fail "fail-closed nftables policy was removed after policy-route rollback failure"
 for iface in wg-server awg-primary awg-secondary; do
     if ip netns exec "$NS" ip link show dev "$iface" >/dev/null 2>&1; then
@@ -567,7 +567,7 @@ exec "$REAL_NFT" "\$@"
 EOF
 chmod +x "$TMP/fail-nft-bin/ip" "$TMP/fail-nft-bin/nft"
 
-ip netns exec "$NS" env PATH="$TMP/fail-nft-bin:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/daemon.log" 2>&1 &
+ip netns exec "$NS" env PATH="$TMP/fail-nft-bin:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/daemon-tracing.log" >"$TMP/daemon.log" 2>&1 &
 DAEMON_PID=$!
 
 for _ in $(seq 1 30); do
@@ -624,7 +624,7 @@ for iface in wg-server awg-primary awg-secondary; do
     fi
 done
 
-ip netns exec "$NS" env PATH="$TMP/fail-nft-bin:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/crash-restart.log" 2>&1 &
+ip netns exec "$NS" env PATH="$TMP/fail-nft-bin:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/crash-restart-tracing.log" >"$TMP/crash-restart.log" 2>&1 &
 DAEMON_PID=$!
 for _ in $(seq 1 30); do
     ready=1
@@ -633,7 +633,7 @@ for _ in $(seq 1 30); do
     ip -n "$NS" -4 rule show | grep -Fq 'fwmark 0x1001 lookup main proto 242' || ready=0
     ip -n "$NS" -4 route show table 10000 | grep -Fq 'default dev awg-primary proto 242' || ready=0
     ip netns exec "$NS" ip link show dev wg-server >/dev/null 2>&1 || ready=0
-    grep -Fq 'vpn-relay runtime started' "$TMP/crash-restart.log" || ready=0
+    grep -Fq 'vpn-relay runtime started' "$TMP/crash-restart-tracing.log" || ready=0
     [[ $ready -eq 1 ]] && break
     if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
         fail "daemon failed to recover from stale owned resources after SIGKILL"
@@ -908,7 +908,7 @@ fi
 exec "$REAL_IP_SHUTDOWN" "\$@"
 EOF
 chmod +x "$TMP/fail-shutdown-ip/ip"
-ip netns exec "$NS" env PATH="$TMP/fail-shutdown-ip:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/shutdown-cleanup-failure.log" 2>&1 &
+ip netns exec "$NS" env PATH="$TMP/fail-shutdown-ip:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/shutdown-cleanup-tracing.log" >"$TMP/shutdown-cleanup-failure.log" 2>&1 &
 DAEMON_PID=$!
 for _ in $(seq 1 30); do
     ready=1
@@ -929,7 +929,7 @@ DAEMON_PID=""
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 || fail "nftables fail-closed policy was removed despite policy-rule cleanup failure"
 ip -n "$NS" -4 rule show | grep -Fq 'fwmark 0x1001 lookup main proto 242' || fail "injected policy rule unexpectedly disappeared during failed cleanup"
 [[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "0" ]] || fail "IPv4 forwarding was not restored after shutdown cleanup failure"
-grep -Fq "shutdown cleanup incomplete; retaining fail-closed nftables policy" "$TMP/shutdown-cleanup-failure.log" || fail "daemon did not report retained fail-closed policy"
+grep -Fq "shutdown cleanup incomplete; retaining fail-closed nftables policy" "$TMP/shutdown-cleanup-tracing.log" || fail "daemon did not report retained fail-closed policy"
 # A failed IPv4 forwarding restore during graceful shutdown must also retain
 REAL_SYSCTL_SHUTDOWN="$(command -v sysctl)"
 mkdir -p "$TMP/fail-shutdown-sysctl"
@@ -943,7 +943,7 @@ fi
 exec "$REAL_SYSCTL_SHUTDOWN" "\$@"
 EOF
 chmod +x "$TMP/fail-shutdown-sysctl/sysctl"
-ip netns exec "$NS" env PATH="$TMP/fail-shutdown-sysctl:$PATH" "$BIN" --config "$TMP/config.toml" >"$TMP/shutdown-forwarding-restore-failure.log" 2>&1 &
+ip netns exec "$NS" env PATH="$TMP/fail-shutdown-sysctl:$PATH" "$BIN" --config "$TMP/config.toml" --log "$TMP/shutdown-forwarding-restore-tracing.log" >"$TMP/shutdown-forwarding-restore-failure.log" 2>&1 &
 DAEMON_PID=$!
 for _ in $(seq 1 30); do
     ready=1
@@ -963,7 +963,7 @@ DAEMON_PID=""
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 || fail "nftables fail-closed policy was removed despite IPv4 forwarding restore failure"
 [[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "1" ]] || fail "injected IPv4 forwarding restore unexpectedly succeeded"
 grep -Fq "injected shutdown IPv4 forwarding restore failure" "$TMP/shutdown-forwarding-restore-failure.log" || fail "daemon log omitted injected IPv4 forwarding restore failure"
-grep -Fq "shutdown cleanup incomplete; retaining fail-closed nftables policy" "$TMP/shutdown-forwarding-restore-failure.log" || fail "daemon did not report retained fail-closed policy after forwarding restore failure"
+grep -Fq "shutdown cleanup incomplete; retaining fail-closed nftables policy" "$TMP/shutdown-forwarding-restore-tracing.log" || fail "daemon did not report retained fail-closed policy after forwarding restore failure"
 # Repair the deliberately retained state with the real sysctl executable.
 ip netns exec "$NS" "$REAL_SYSCTL_SHUTDOWN" -w net.ipv4.ip_forward=0 >/dev/null
 ip netns exec "$NS" nft delete table inet vpn_relay_it
@@ -1037,7 +1037,7 @@ ip netns exec "$NS" sysctl -qw net.ipv4.ip_forward=0
 # must not transfer its firewall privileges. The old descriptor check should
 # stop the daemon, while the retained name+ifindex guard drops packets emitted
 # through the replacement link.
-ip netns exec "$NS" "$BIN" --config "$TMP/config-no-forwarding-management.toml" >"$TMP/tun-identity-loss.log" 2>&1 &
+ip netns exec "$NS" "$BIN" --config "$TMP/config-no-forwarding-management.toml" --log "$TMP/tun-identity-loss-tracing.log" >"$TMP/tun-identity-loss.log" 2>&1 &
 DAEMON_PID=$!
 for _ in $(seq 1 30); do
     ready=1
@@ -1081,6 +1081,6 @@ DAEMON_PID=""
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 || fail "fail-closed nftables policy was removed after TUN identity loss"
 ip netns exec "$NS" ip link show dev awg-primary >/dev/null 2>&1 || fail "same-name replacement TUN was unexpectedly removed"
 grep -Fq "lost its original interface identity" "$TMP/tun-identity-loss.log" || fail "daemon did not report loss of original TUN identity"
-grep -Fq "retaining fail-closed nftables policy" "$TMP/tun-identity-loss.log" || fail "daemon did not retain firewall after TUN identity loss"
+grep -Fq "retaining fail-closed nftables policy" "$TMP/tun-identity-loss-tracing.log" || fail "daemon did not retain firewall after TUN identity loss"
 
 echo "vpn-relay namespace integration test passed"
