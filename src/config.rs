@@ -584,9 +584,6 @@ impl Config {
                 ));
             }
         }
-        if self.daemon.stats_interval_secs == 0 {
-            return invalid("[daemon].stats_interval_secs must be greater than zero");
-        }
         if !valid_nft_table_name(&self.daemon.nft_table) {
             return invalid(
                 "[daemon].nft_table must contain only ASCII letters, digits, or underscores",
@@ -1188,7 +1185,7 @@ egress = "awg-uplink"
     }
 
     #[test]
-    fn reload_compatibility_rejects_daemon_lifecycle_changes_but_allows_stats_interval() {
+    fn reload_compatibility_ignores_legacy_stats_interval() {
         let current = Config::parse_toml(&valid_config()).unwrap();
 
         let mut changed_table = current.clone();
@@ -1216,7 +1213,7 @@ egress = "awg-uplink"
             .contains("daemon.log_level"));
 
         let mut changed_stats_interval = current.clone();
-        changed_stats_interval.daemon.stats_interval_secs += 1;
+        changed_stats_interval.daemon.stats_interval_secs = 0;
         changed_stats_interval.validate().unwrap();
         current
             .validate_reload_compatibility(&changed_stats_interval)
