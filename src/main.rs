@@ -249,7 +249,8 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
         if unsafe { libc::setsid() } < 0 {
             return Err(std::io::Error::last_os_error().into());
         }
-        if unsafe { libc::chdir(c"/".as_ptr()) } != 0 {
+        let root_path = std::ffi::CString::new("/")?;
+        if unsafe { libc::chdir(root_path.as_ptr()) } != 0 {
             return Err(std::io::Error::last_os_error().into());
         }
         unsafe {
