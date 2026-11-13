@@ -58,8 +58,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 let path = &value["--log=".len()..];
                 if path.is_empty() {
                     return Err(
-            "--log= requires a non-empty path; use --log for the default".into(),
-        );
+                        "--log= requires a non-empty path; use --log for the default".into(),
+                    );
                 }
                 log_path = Some(path.into());
             }
@@ -212,6 +212,23 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
     if unsafe { libc::pipe2(pipe_fds.as_mut_ptr(), libc::O_CLOEXEC) } != 0 {
         return Err(std::io::Error::last_os_error().into());
     }
+    for fd in &mut pipe_fds {
+        if *fd <= 2 {
+            let duplicate = unsafe { libc::fcntl(*fd, libc::F_DUPFD_CLOEXEC, 3) };
+            if duplicate < 0 {
+                let error = std::io::Error::last_os_error();
+                unsafe {
+                    libc::close(pipe_fds[0]);
+                    libc::close(pipe_fds[1]);
+                }
+                return Err(error.into());
+            }
+            unsafe {
+                libc::close(*fd);
+            }
+            *fd = duplicate;
+        }
+    }
 
     let pid = unsafe { libc::fork() };
     if pid < 0 {
@@ -288,7 +305,9 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
     match startup_result {
         Ok(runtime) => {
             let _ = unsafe { libc::write(startup_fd, b"OK".as_ptr().cast(), 2) };
-            unsafe { libc::close(startup_fd); }
+            unsafe {
+                libc::close(startup_fd);
+            }
             let exit_code = match runtime.run() {
                 Ok(()) => 0,
                 Err(error) => {
@@ -296,7 +315,9 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
                     1
                 }
             };
-            unsafe { libc::_exit(exit_code); }
+            unsafe {
+                libc::_exit(exit_code);
+            }
         }
         Err(error) => {
             let message = format!("ERR {error}");
