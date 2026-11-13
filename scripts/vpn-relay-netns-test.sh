@@ -30,7 +30,7 @@ trap cleanup EXIT
 
 fail() {
     echo "vpn-relay namespace test: $*" >&2
-    for log in "$TMP/bootstrap-nft-failure.log" "$TMP/indexed-nft-failure.log" "$TMP/startup-route-rollback-failure.log" "$TMP/startup-route-rollback-tracing.log" "$TMP/daemon-tracing.log" "$TMP/crash-restart-tracing.log" "$TMP/shutdown-cleanup-tracing.log" "$TMP/shutdown-forwarding-restore-tracing.log" "$TMP/tun-identity-loss-tracing.log" "$TMP/startup-nft-cleanup-ip-commands.log" "$TMP/startup-route-rollback-ip.log" "$TMP/startup-route-rollback-route-after.txt" "$TMP/startup-route-rollback-routes-all.txt" "$TMP/startup-nft-cleanup-failure.log" "$TMP/daemon.log" "$TMP/conflict.log" "$TMP/policy-conflict.log" "$TMP/route-conflict.log" "$TMP/policy-shadow-conflict.log" "$TMP/partial-setup-conflict.log" "${TMP}/partial-interface-config.log" "$TMP/partial-interface-mtu.log" "$TMP/partial-policy-route.log" "$TMP/partial-forwarding.log" "$TMP/partial-ipv4-forwarding.log" "$TMP/partial-ipv4-forwarding-restore-failure.log" "$TMP/startup-forwarding-route-cleanup-failure.log" "$TMP/reload-failure.log" "$TMP/reload-dns-failure.log" "$TMP/reload-route-failure.log" "$TMP/reload-immutable.log" "$TMP/shutdown-cleanup-failure.log" "$TMP/shutdown-forwarding-restore-failure.log" "$TMP/preexisting-forwarding.log" "$TMP/fail-route-commands.log" "$TMP/forwarding-management-disabled.log" "$TMP/tun-identity-loss.log"; do
+    for log in "$TMP/bootstrap-nft-failure.log" "$TMP/indexed-nft-failure.log" "$TMP/no-log-output.log" "$TMP/startup-route-rollback-failure.log" "$TMP/startup-route-rollback-tracing.log" "$TMP/daemon-tracing.log" "$TMP/crash-restart-tracing.log" "$TMP/shutdown-cleanup-tracing.log" "$TMP/shutdown-forwarding-restore-tracing.log" "$TMP/tun-identity-loss-tracing.log" "$TMP/startup-nft-cleanup-ip-commands.log" "$TMP/startup-route-rollback-ip.log" "$TMP/startup-route-rollback-route-after.txt" "$TMP/startup-route-rollback-routes-all.txt" "$TMP/startup-nft-cleanup-failure.log" "$TMP/daemon.log" "$TMP/conflict.log" "$TMP/policy-conflict.log" "$TMP/route-conflict.log" "$TMP/policy-shadow-conflict.log" "$TMP/partial-setup-conflict.log" "${TMP}/partial-interface-config.log" "$TMP/partial-interface-mtu.log" "$TMP/partial-policy-route.log" "$TMP/partial-forwarding.log" "$TMP/partial-ipv4-forwarding.log" "$TMP/partial-ipv4-forwarding-restore-failure.log" "$TMP/startup-forwarding-route-cleanup-failure.log" "$TMP/reload-failure.log" "$TMP/reload-dns-failure.log" "$TMP/reload-route-failure.log" "$TMP/reload-immutable.log" "$TMP/shutdown-cleanup-failure.log" "$TMP/shutdown-forwarding-restore-failure.log" "$TMP/preexisting-forwarding.log" "$TMP/fail-route-commands.log" "$TMP/forwarding-management-disabled.log" "$TMP/tun-identity-loss.log"; do
         if [[ -f "$log" ]]; then
             cat "$log" >&2
         fi
@@ -575,6 +575,29 @@ fi
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 && fail "background daemon left its nftables table after shutdown"
 ip netns exec "$NS" ip link show dev wg-server >/dev/null 2>&1 && fail "background daemon left its TUN interface after shutdown"
 [[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "0" ]] || fail "background daemon did not restore IPv4 forwarding"
+
+# With no --log parameter, a foreground daemon must remain completely silent.
+ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" >"$TMP/no-log-output.log" 2>&1 &
+DAEMON_PID=$!
+ready=0
+for _ in $(seq 1 30); do
+    if ip -n "$NS" link show dev wg-server >/dev/null 2>&1 \
+        && ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1; then
+        ready=1
+        break
+    fi
+    if ! kill -0 "$DAEMON_PID" 2>/dev/null; then
+        fail "foreground daemon exited during no-log test"
+    fi
+    sleep 1
+done
+[[ $ready -eq 1 ]] || fail "foreground daemon did not start during no-log test"
+sleep 1
+[[ ! -s "$TMP/no-log-output.log" ]] || fail "daemon wrote to stdout/stderr without --log"
+kill -TERM "$DAEMON_PID"
+wait "$DAEMON_PID" || fail "foreground daemon failed during no-log shutdown"
+DAEMON_PID=""
+[[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "0" ]] || fail "foreground daemon did not restore IPv4 forwarding after no-log test"
 
 REAL_NFT="$(command -v nft)"
 mkdir -p "$TMP/fail-nft-bin"
