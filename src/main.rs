@@ -91,7 +91,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         + import_args.is_some() as usize;
     if control_operations > 1 {
         return Err(
-            "--check, --stats, --reload, --replace-peers and --import are mutually exclusive".into(),
+            "--check, --stats, --reload, --replace-peers and --import are mutually exclusive"
+                .into(),
         );
     }
     if background && control_operations != 0 {
@@ -449,5 +450,4 @@ mod tests {
         assert_eq!(format_handshake(Some(7_200)), "2ч назад");
         assert_eq!(format_handshake(Some(172_800)), "2д назад");
     }
-
 }
