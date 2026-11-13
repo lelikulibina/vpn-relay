@@ -204,6 +204,10 @@ fn init_logging(
 
 #[cfg(target_os = "linux")]
 fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+    let log_path = match log_path {
+        Some(path) if !path.is_absolute() => Some(std::env::current_dir()?.join(path)),
+        other => other,
+    };
     let mut pipe_fds = [0; 2];
     if unsafe { libc::pipe2(pipe_fds.as_mut_ptr(), libc::O_CLOEXEC) } != 0 {
         return Err(std::io::Error::last_os_error().into());
