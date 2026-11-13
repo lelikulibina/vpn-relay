@@ -28,6 +28,8 @@ pub struct TunnelSnapshot {
 #[derive(Clone, Debug)]
 pub struct TunnelPeerSnapshot {
     pub public_key: [u8; 32],
+    pub allowed_ips: Vec<String>,
+    pub endpoint: Option<SocketAddr>,
     pub tx_bytes: u64,
     pub rx_bytes: u64,
     pub time_since_last_handshake: Option<Duration>,
