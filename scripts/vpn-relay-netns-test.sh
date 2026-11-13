@@ -1033,7 +1033,7 @@ wait "$DAEMON_PID" || fail "daemon failed while handling graceful shutdown forwa
 DAEMON_PID=""
 ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 || fail "nftables fail-closed policy was removed despite IPv4 forwarding restore failure"
 [[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "1" ]] || fail "injected IPv4 forwarding restore unexpectedly succeeded"
-grep -Fq "injected shutdown IPv4 forwarding restore failure" "$TMP/shutdown-forwarding-restore-failure.log" || fail "daemon log omitted injected IPv4 forwarding restore failure"
+grep -Fq "injected shutdown IPv4 forwarding restore failure" "$TMP/shutdown-forwarding-restore-tracing.log" || fail "daemon log omitted injected IPv4 forwarding restore failure"
 grep -Fq "shutdown cleanup incomplete; retaining fail-closed nftables policy" "$TMP/shutdown-forwarding-restore-tracing.log" || fail "daemon did not report retained fail-closed policy after forwarding restore failure"
 # Repair the deliberately retained state with the real sysctl executable.
 ip netns exec "$NS" "$REAL_SYSCTL_SHUTDOWN" -w net.ipv4.ip_forward=0 >/dev/null
