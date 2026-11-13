@@ -1,6 +1,8 @@
 #[cfg(target_os = "linux")]
 use std::io::Read;
 #[cfg(target_os = "linux")]
+use std::os::fd::FromRawFd;
+#[cfg(target_os = "linux")]
 use std::path::PathBuf;
 #[cfg(target_os = "linux")]
 use vpn_relay::{Config, InterfaceStats, Runtime};
@@ -425,9 +427,6 @@ fn format_handshake(age: Option<u64>) -> String {
         Some(seconds) => format!("{}д назад", seconds / 86_400),
     }
 }
-
-#[cfg(target_os = "linux")]
-use std::os::fd::FromRawFd;
 
 #[cfg(all(test, target_os = "linux"))]
 mod tests {
