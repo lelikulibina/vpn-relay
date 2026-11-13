@@ -53,7 +53,6 @@ pub struct Runtime {
     retired_routing: Vec<RoutingPlan>,
     conntrack_mark_state_path: PathBuf,
     conntrack_mark_history: Vec<crate::routing::RoutingDecision>,
-    stats_interval: Duration,
     forwarding_state: Option<ForwardingState>,
     forwarding_state_path: PathBuf,
     control_socket: ControlSocket,
@@ -371,6 +370,7 @@ struct ForwardingStateFile {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 enum ControlRequest {
+    GetStats,
     ReplacePeers {
         interface: String,
         peers: Vec<PeerConfig>,
@@ -380,10 +380,28 @@ enum ControlRequest {
     },
 }
 
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct InterfaceStats {
+    pub name: String,
+    pub peers: Vec<PeerStats>,
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct PeerStats {
+    pub public_key: String,
+    pub client_ips: Vec<String>,
+    pub endpoint: Option<std::net::SocketAddr>,
+    pub tx_bytes: u64,
+    pub rx_bytes: u64,
+    pub handshake_age_secs: Option<u64>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ControlResponse {
     ok: bool,
     error: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    stats: Option<Vec<InterfaceStats>>,
 }
 
 struct ControlSocket {
@@ -696,7 +714,6 @@ impl Runtime {
             None
         };
 
-        let stats_interval = Duration::from_secs(config.daemon.stats_interval_secs);
         tracing::info!(interfaces = devices.len(), "vpn-relay runtime started");
         Ok(Self {
             devices,
@@ -707,7 +724,6 @@ impl Runtime {
             retired_routing: Vec::new(),
             conntrack_mark_state_path,
             conntrack_mark_history,
-            stats_interval,
             forwarding_state,
             forwarding_state_path,
             control_socket,
@@ -986,14 +1002,23 @@ impl Runtime {
         let read_result = (&mut stream)
             .take(1024 * 1024 + 1)
             .read_to_end(&mut payload);
+        let mut stats = None;
         let response = match read_result {
             Ok(_) if payload.len() > 1024 * 1024 => ControlResponse {
                 ok: false,
                 error: Some("request exceeds 1 MiB limit".to_owned()),
+                stats: None,
             },
             Ok(_) => match serde_json::from_slice::<ControlRequest>(&payload) {
                 Ok(request) => {
                     let result = match request {
+                        ControlRequest::GetStats => match self.collect_stats() {
+                            Ok(value) => {
+                                stats = Some(value);
+                                Ok(())
+                            }
+                            Err(error) => Err(error),
+                        },
                         ControlRequest::ReplacePeers { interface, peers } => {
                             self.replace_peers(&interface, peers)
                         }
@@ -1005,21 +1030,25 @@ impl Runtime {
                         Ok(()) => ControlResponse {
                             ok: true,
                             error: None,
+                            stats,
                         },
                         Err(error) => ControlResponse {
                             ok: false,
                             error: Some(error.to_string()),
+                            stats: None,
                         },
                     }
                 }
                 Err(error) => ControlResponse {
                     ok: false,
                     error: Some(format!("invalid control request: {error}")),
+                    stats: None,
                 },
             },
             Err(error) => ControlResponse {
                 ok: false,
                 error: Some(format!("failed to read control request: {error}")),
+                stats: None,
             },
         };
         let write_result = serde_json::to_vec(&response)
@@ -1035,20 +1064,26 @@ impl Runtime {
     }
 
     /// Send a peer replacement request to the daemon in this network namespace.
+    pub fn request_stats() -> Result<Vec<InterfaceStats>, RuntimeError> {
+        Self::send_control_request(ControlRequest::GetStats)?
+            .stats
+            .ok_or_else(|| RuntimeError::Control("daemon returned no statistics".to_owned()))
+    }
+
     pub fn request_peer_replacement(
         interface: String,
         peers: Vec<PeerConfig>,
     ) -> Result<(), RuntimeError> {
-        Self::send_control_request(ControlRequest::ReplacePeers { interface, peers })
+        Self::send_control_request(ControlRequest::ReplacePeers { interface, peers }).map(|_| ())
     }
 
     /// Send a complete TOML configuration to the running daemon for validation
     /// and transactional application.
     pub fn request_config_reload(toml: String) -> Result<(), RuntimeError> {
-        Self::send_control_request(ControlRequest::ReloadConfig { toml })
+        Self::send_control_request(ControlRequest::ReloadConfig { toml }).map(|_| ())
     }
 
-    fn send_control_request(request: ControlRequest) -> Result<(), RuntimeError> {
+    fn send_control_request(request: ControlRequest) -> Result<ControlResponse, RuntimeError> {
         let path = InstanceLock::current_control_path()?;
         let mut stream =
             UnixStream::connect(&path).map_err(|error| RuntimeError::Control(error.to_string()))?;
@@ -1068,7 +1103,7 @@ impl Runtime {
         let response: ControlResponse = serde_json::from_slice(&response)
             .map_err(|error| RuntimeError::Control(error.to_string()))?;
         if response.ok {
-            Ok(())
+            Ok(response)
         } else {
             Err(RuntimeError::Control(
                 response
@@ -1086,7 +1121,30 @@ impl Runtime {
             .collect()
     }
 
-    /// Keep the daemon alive, publish peer counters, and stop cleanly on SIGINT/SIGTERM.
+    fn collect_stats(&self) -> Result<Vec<InterfaceStats>, RuntimeError> {
+        self.snapshots().map(|interfaces| {
+            interfaces
+                .into_iter()
+                .map(|interface| InterfaceStats {
+                    name: interface.name,
+                    peers: interface
+                        .peers
+                        .into_iter()
+                        .map(|peer| PeerStats {
+                            public_key: hex_key(&peer.public_key),
+                            client_ips: peer.allowed_ips,
+                            endpoint: peer.endpoint,
+                            tx_bytes: peer.tx_bytes,
+                            rx_bytes: peer.rx_bytes,
+                            handshake_age_secs: peer.time_since_last_handshake.map(|age| age.as_secs()),
+                        })
+                        .collect(),
+                })
+                .collect()
+        })
+    }
+
+    /// Keep the daemon alive and stop cleanly on SIGINT/SIGTERM.
     pub fn run(mut self) -> Result<(), RuntimeError> {
         install_signal_handlers()?;
         while !SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
@@ -1095,41 +1153,8 @@ impl Runtime {
             if let Some(error) = &self.fatal_error {
                 return Err(RuntimeError::FatalTransition(error.clone()));
             }
-            let mut elapsed = 0;
-            while elapsed < self.stats_interval.as_secs()
-                && !SHUTDOWN_REQUESTED.load(Ordering::Relaxed)
-            {
-                std::thread::sleep(Duration::from_secs(1));
-                elapsed += 1;
-                self.verify_tunnel_identities()?;
-                self.accept_control_connections();
-                if let Some(error) = &self.fatal_error {
-                    return Err(RuntimeError::FatalTransition(error.clone()));
-                }
-            }
-            if SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
-                break;
-            }
-            match self.snapshots() {
-                Ok(snapshots) => {
-                    for device in snapshots {
-                        for peer in device.peers {
-                            tracing::info!(
-                                interface = %device.name,
-                                peer = %hex_key(&peer.public_key),
-                                tx_bytes = peer.tx_bytes,
-                                rx_bytes = peer.rx_bytes,
-                                handshake_age_secs = ?peer
-                                    .time_since_last_handshake
-                                    .map(|age| age.as_secs()),
-                                "peer statistics"
-                            );
-                        }
-                    }
-                }
-                Err(error) => {
-                    tracing::error!(%error, "failed to collect tunnel statistics")
-                }
+            if !SHUTDOWN_REQUESTED.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(100));
             }
         }
 
