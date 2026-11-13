@@ -143,7 +143,7 @@ set -e
 PID=""
 [[ $tamper_status -ne 0 ]] || fail "daemon exited successfully after forwarding isolation drift"
 ip netns exec "$NS" nft list table inet vpn_relay_per_if_test >/dev/null 2>&1 || fail "fail-closed firewall was removed after forwarding isolation drift"
-grep -Fq "per-interface forwarding invariants changed at runtime" "$TMP/daemon-tracing.log" || fail "daemon did not report runtime forwarding isolation drift"
+grep -Fq "per-interface forwarding invariants changed at runtime" "$TMP/daemon.log" || fail "daemon did not report runtime forwarding isolation drift"
 ip netns exec "$NS" sysctl -qw net.ipv4.conf.untrusted0.forwarding=0
 dump_forwarding_state "after drift reset"
 ip netns exec "$NS" nft delete table inet vpn_relay_per_if_test
