@@ -57,7 +57,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
                 log_enabled = true;
                 let path = &value["--log=".len()..];
                 if path.is_empty() {
-                    return Err("--log= requires a non-empty path; use --log for the default".into());
+                    return Err(
+            "--log= requires a non-empty path; use --log for the default".into(),
+        );
                 }
                 log_path = Some(path.into());
             }
@@ -82,13 +84,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let control_operations = usize::from(check_only)
-        + usize::from(stats_requested)
-        + usize::from(reload_config_requested)
-        + usize::from(replace_peers_interface.is_some())
-        + usize::from(import_args.is_some());
+    let control_operations = check_only as usize
+        + stats_requested as usize
+        + reload_config_requested as usize
+        + replace_peers_interface.is_some() as usize
+        + import_args.is_some() as usize;
     if control_operations > 1 {
-        return Err("--check, --stats, --reload, --replace-peers and --import are mutually exclusive".into());
+        return Err(
+            "--check, --stats, --reload, --replace-peers and --import are mutually exclusive".into(),
+        );
     }
     if background && control_operations != 0 {
         return Err("--background can only be used when starting the daemon".into());
@@ -123,7 +127,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         let report = vpn_relay::import::import_file(&source, &config_path, &name, exists)?;
         println!("Импортирован интерфейс '{name}': {:?}.", report.tunnel_type);
         if report.replaced {
-            println!("Существующий интерфейс заменён; остальные интерфейсы и routing rules сохранены.");
+            println!(
+                "Существующий интерфейс заменён; остальные интерфейсы и routing rules сохранены."
+            );
         }
         if report.warnings.is_empty() {
             println!("Все распознанные параметры перенесены.");
@@ -174,7 +180,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(target_os = "linux")]
-fn init_logging(path: Option<PathBuf>, configured_level: &str) -> Result<(), Box<dyn std::error::Error>> {
+fn init_logging(
+    path: Option<PathBuf>,
+    configured_level: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = path {
         let file = std::fs::OpenOptions::new()
             .create(true)
@@ -211,7 +220,9 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
     }
 
     if pid > 0 {
-        unsafe { libc::close(pipe_fds[1]); }
+        unsafe {
+            libc::close(pipe_fds[1]);
+        }
         let mut message = String::new();
         let mut reader = unsafe { std::fs::File::from_raw_fd(pipe_fds[0]) };
         reader.read_to_string(&mut message)?;
@@ -219,13 +230,19 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
             return Err(error.trim().to_owned().into());
         }
         if message.trim() != "OK" {
-            return Err(format!("background daemon exited before startup confirmation: {}", message.trim()).into());
+            return Err(format!(
+                "background daemon exited before startup confirmation: {}",
+                message.trim()
+            )
+            .into());
         }
         println!("vpn-relay started in background (pid {pid})");
         return Ok(());
     }
 
-    unsafe { libc::close(pipe_fds[0]); }
+    unsafe {
+        libc::close(pipe_fds[0]);
+    }
     let startup_fd = pipe_fds[1];
     let log_level = config.daemon.log_level.clone();
     let startup_result = (|| -> Result<Runtime, Box<dyn std::error::Error>> {
@@ -235,7 +252,9 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
         if unsafe { libc::chdir(c"/".as_ptr()) } != 0 {
             return Err(std::io::Error::last_os_error().into());
         }
-        unsafe { libc::umask(0o027); }
+        unsafe {
+            libc::umask(0o027);
+        }
         let null_path = std::ffi::CString::new("/dev/null")?;
         let null_fd = unsafe { libc::open(null_path.as_ptr(), libc::O_RDWR) };
         if null_fd < 0 {
@@ -244,12 +263,16 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
         for target in 0..=2 {
             if unsafe { libc::dup2(null_fd, target) } < 0 {
                 let error = std::io::Error::last_os_error();
-                unsafe { libc::close(null_fd); }
+                unsafe {
+                    libc::close(null_fd);
+                }
                 return Err(error.into());
             }
         }
         if null_fd > 2 {
-            unsafe { libc::close(null_fd); }
+            unsafe {
+                libc::close(null_fd);
+            }
         }
         close_extra_fds(startup_fd);
         init_logging(log_path, &log_level)?;
@@ -287,7 +310,9 @@ fn close_extra_fds(keep_fd: libc::c_int) {
     let max_fd = if max_fd < 0 { 1024 } else { max_fd.min(65_536) };
     for fd in 3..max_fd as libc::c_int {
         if fd != keep_fd {
-            unsafe { libc::close(fd); }
+            unsafe {
+                libc::close(fd);
+            }
         }
     }
 }
@@ -317,8 +342,15 @@ fn print_stats(interfaces: &[InterfaceStats]) {
         }
 
         for peer in &interface.peers {
-            let ips = if peer.client_ips.is_empty() { "-".to_owned() } else { peer.client_ips.join(", ") };
-            let endpoint = peer.endpoint.map(|value| value.to_string()).unwrap_or_else(|| "-".to_owned());
+            let ips = if peer.client_ips.is_empty() {
+                "-".to_owned()
+            } else {
+                peer.client_ips.join(", ")
+            };
+            let endpoint = peer
+                .endpoint
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "-".to_owned());
             println!(
                 "{:<64}  {:<39}  {:<21}  {:>12}  {:>12}  {:>12}",
                 peer.public_key,
@@ -348,7 +380,11 @@ fn format_bytes(bytes: u64) -> String {
         value /= 1000.0;
         unit += 1;
     }
-    if unit == 0 { format!("{bytes} B") } else { format!("{value:.2} {}", UNITS[unit]) }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.2} {}", UNITS[unit])
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -366,7 +402,11 @@ fn format_handshake(age: Option<u64>) -> String {
 fn truncate(value: &str, max_chars: usize) -> String {
     let mut chars = value.chars();
     let prefix: String = chars.by_ref().take(max_chars.saturating_sub(1)).collect();
-    if chars.next().is_some() { format!("{prefix}…") } else { value.to_owned() }
+    if chars.next().is_some() {
+        format!("{prefix}…")
+    } else {
+        value.to_owned()
+    }
 }
 
 #[cfg(target_os = "linux")]
