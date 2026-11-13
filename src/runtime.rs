@@ -3332,5 +3332,4 @@ mod tests {
         assert_eq!(peer.rx_bytes, 5678);
         assert_eq!(peer.handshake_age_secs, Some(12));
     }
-
 }
