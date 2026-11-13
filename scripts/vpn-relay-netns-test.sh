@@ -97,7 +97,7 @@ private_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 socket_fwmark = 4097
 
 [[interfaces.wg-server.peers]]
-public_key = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+public_key = "pOCSkrZRwni5dyxWn1+puxPZBrRqtoyd+dwrRAn4ogk="
 allowed_ips = ["10.10.0.2/32"]
 endpoint = "198.51.100.10:51820"
 
