@@ -3294,4 +3294,40 @@ mod tests {
         drop(socket);
         assert!(!path.exists());
     }
+
+    #[test]
+    fn get_stats_control_request_uses_tagged_operation() {
+        let encoded = serde_json::to_string(&ControlRequest::GetStats).unwrap();
+        assert_eq!(encoded, r#"{"operation":"get_stats"}"#);
+        let decoded: ControlRequest = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(decoded, ControlRequest::GetStats);
+    }
+
+    #[test]
+    fn stats_control_response_preserves_client_and_endpoint_metadata() {
+        let response = ControlResponse {
+            ok: true,
+            error: None,
+            stats: Some(vec![InterfaceStats {
+                name: "wg0".to_owned(),
+                peers: vec![PeerStats {
+                    public_key: "aabb".to_owned(),
+                    client_ips: vec!["10.0.0.2/32".to_owned()],
+                    endpoint: Some("203.0.113.10:51820".parse().unwrap()),
+                    tx_bytes: 1234,
+                    rx_bytes: 5678,
+                    handshake_age_secs: Some(12),
+                }],
+            }]),
+        };
+        let encoded = serde_json::to_vec(&response).unwrap();
+        let decoded: ControlResponse = serde_json::from_slice(&encoded).unwrap();
+        let peer = &decoded.stats.unwrap()[0].peers[0];
+        assert_eq!(peer.client_ips, vec!["10.0.0.2/32"]);
+        assert_eq!(peer.endpoint, Some("203.0.113.10:51820".parse().unwrap()));
+        assert_eq!(peer.tx_bytes, 1234);
+        assert_eq!(peer.rx_bytes, 5678);
+        assert_eq!(peer.handshake_age_secs, Some(12));
+    }
+
 }
