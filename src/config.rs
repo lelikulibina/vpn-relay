@@ -42,6 +42,7 @@ pub struct Config {
 pub struct DaemonConfig {
     #[serde(default = "default_log_level")]
     pub log_level: String,
+    /// Deprecated; retained for configuration compatibility and ignored.
     #[serde(default = "default_stats_interval")]
     pub stats_interval_secs: u64,
     #[serde(default = "default_nft_table")]
