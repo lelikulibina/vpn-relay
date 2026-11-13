@@ -3322,8 +3322,9 @@ mod tests {
         };
         let encoded = serde_json::to_vec(&response).unwrap();
         let decoded: ControlResponse = serde_json::from_slice(&encoded).unwrap();
-        let peer = &decoded.stats.unwrap()[0].peers[0];
-        assert_eq!(peer.client_ips, vec!["10.0.0.2/32"]);
+        let stats = decoded.stats.unwrap();
+        let peer = &stats[0].peers[0];
+        assert_eq!(peer.client_ips, vec!["10.0.0.2/32".to_owned()]);
         assert_eq!(peer.endpoint, Some("203.0.113.10:51820".parse().unwrap()));
         assert_eq!(peer.tx_bytes, 1234);
         assert_eq!(peer.rx_bytes, 5678);
