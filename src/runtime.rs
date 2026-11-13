@@ -3178,6 +3178,8 @@ mod tests {
                         public_key[0] = key.as_bytes().first().copied().unwrap_or_default();
                         crate::backend::TunnelPeerSnapshot {
                             public_key,
+                            allowed_ips: vec!["10.0.0.2/32".to_owned()],
+                            endpoint: None,
                             tx_bytes: 0,
                             rx_bytes: 0,
                             time_since_last_handshake: None,
