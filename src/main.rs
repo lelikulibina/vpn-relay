@@ -1,5 +1,5 @@
 #[cfg(target_os = "linux")]
-use std::io::{Read, Write};
+use std::io::Read;
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
 #[cfg(target_os = "linux")]
@@ -26,7 +26,7 @@ fn main() {
 
 #[cfg(target_os = "linux")]
 fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args().skip(1);
+    let mut args = std::env::args().skip(1).peekable();
     let mut config_path = PathBuf::from(DEFAULT_CONFIG);
     let mut check_only = false;
     let mut stats_requested = false;
@@ -165,7 +165,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     if background {
         daemonize(config, log_path)?;
     } else {
-        init_logging(log_path)?;
+        let log_level = config.daemon.log_level.clone();
+        init_logging(log_path, &log_level)?;
         tracing::info!(path = %config_path.display(), "starting vpn-relay");
         Runtime::start(config)?.run()?;
     }
@@ -173,7 +174,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[cfg(target_os = "linux")]
-fn init_logging(path: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+fn init_logging(path: Option<PathBuf>, configured_level: &str) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(path) = path {
         let file = std::fs::OpenOptions::new()
             .create(true)
@@ -181,7 +182,7 @@ fn init_logging(path: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>>
             .open(&path)
             .map_err(|error| format!("cannot open log file {}: {error}", path.display()))?;
         let filter = tracing_subscriber::EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+            .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new(configured_level));
         tracing_subscriber::fmt()
             .with_writer(file)
             .with_ansi(false)
@@ -226,6 +227,7 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
 
     unsafe { libc::close(pipe_fds[0]); }
     let startup_fd = pipe_fds[1];
+    let log_level = config.daemon.log_level.clone();
     let startup_result = (|| -> Result<Runtime, Box<dyn std::error::Error>> {
         if unsafe { libc::setsid() } < 0 {
             return Err(std::io::Error::last_os_error().into());
@@ -250,7 +252,7 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
             unsafe { libc::close(null_fd); }
         }
         close_extra_fds(startup_fd);
-        init_logging(log_path)?;
+        init_logging(log_path, &log_level)?;
         tracing::info!(pid = std::process::id(), "vpn-relay background daemon starting");
         Runtime::start(config).map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })
     })();
