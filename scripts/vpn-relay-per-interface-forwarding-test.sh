@@ -41,6 +41,7 @@ dump_forwarding_state() {
 fail() {
     echo "vpn-relay per-interface forwarding test: $*" >&2
     [[ ! -f "$TMP/daemon.log" ]] || cat "$TMP/daemon.log" >&2
+    [[ ! -f "$TMP/daemon-tracing.log" ]] || cat "$TMP/daemon-tracing.log" >&2
     [[ ! -f "$TMP/reject.log" ]] || cat "$TMP/reject.log" >&2
     if ip netns exec "$NS" nft list table inet vpn_relay_per_if_test >/dev/null 2>&1; then
         echo "--- nft table (text) ---" >&2
@@ -98,7 +99,7 @@ ip netns exec "$NS" nft list table inet vpn_relay_per_if_test >/dev/null 2>&1 &&
 ip netns exec "$NS" sysctl -qw net.ipv4.conf.untrusted0.forwarding=0
 
 start_daemon() {
-    ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" >"$TMP/daemon.log" 2>&1 &
+    ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" --log "$TMP/daemon-tracing.log" >"$TMP/daemon.log" 2>&1 &
     PID=$!
     for _ in $(seq 1 30); do
         # After SIGKILL the previous nftables table and forwarding values
@@ -142,7 +143,7 @@ set -e
 PID=""
 [[ $tamper_status -ne 0 ]] || fail "daemon exited successfully after forwarding isolation drift"
 ip netns exec "$NS" nft list table inet vpn_relay_per_if_test >/dev/null 2>&1 || fail "fail-closed firewall was removed after forwarding isolation drift"
-grep -Fq "per-interface forwarding invariants changed at runtime" "$TMP/daemon.log" || fail "daemon did not report runtime forwarding isolation drift"
+grep -Fq "per-interface forwarding invariants changed at runtime" "$TMP/daemon-tracing.log" || fail "daemon did not report runtime forwarding isolation drift"
 ip netns exec "$NS" sysctl -qw net.ipv4.conf.untrusted0.forwarding=0
 dump_forwarding_state "after drift reset"
 ip netns exec "$NS" nft delete table inet vpn_relay_per_if_test
