@@ -96,6 +96,11 @@ listen_port = 51820
 private_key = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 socket_fwmark = 4097
 
+[[interfaces.wg-server.peers]]
+public_key = "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+allowed_ips = ["10.10.0.2/32"]
+endpoint = "198.51.100.10:51820"
+
 [interfaces.awg-primary]
 type = "awg"
 address = ["10.20.0.2/32"]
@@ -529,6 +534,47 @@ for table in 10000 10001; do
     fi
 done
 ip netns exec "$NS" nft delete table inet vpn_relay_it
+
+# The background mode must detach from the invoking process, keep serving the
+# control socket, expose peer metadata on demand, and stop cleanly by signal.
+if ! ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" --background \
+    --log "$TMP/background-tracing.log" >"$TMP/background-start.log" 2>&1; then
+    fail "background daemon failed to start"
+fi
+BACKGROUND_PID="$(sed -n 's/.*(pid \([0-9][0-9]*\)).*/\1/p' "$TMP/background-start.log")"
+[[ -n "$BACKGROUND_PID" ]] || fail "background startup did not return the daemon PID"
+ready=0
+for _ in $(seq 1 30); do
+    if ip -n "$NS" link show dev wg-server >/dev/null 2>&1 \
+        && ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1; then
+        ready=1
+        break
+    fi
+    if ! kill -0 "$BACKGROUND_PID" 2>/dev/null; then
+        fail "background daemon exited before becoming ready"
+    fi
+    sleep 1
+done
+[[ $ready -eq 1 ]] || fail "background daemon did not finish startup"
+background_stats="$(ip netns exec "$NS" "$BIN" --stats)"
+grep -Fq "10.10.0.2/32" <<<"$background_stats" || fail "on-demand statistics omitted the client's AllowedIPs"
+grep -Fq "198.51.100.10:51820" <<<"$background_stats" || fail "on-demand statistics omitted the peer endpoint"
+grep -Fq "Получено" <<<"$background_stats" || fail "statistics table omitted received-byte column"
+grep -Fq "Отправлено" <<<"$background_stats" || fail "statistics table omitted sent-byte column"
+grep -Fq "vpn-relay runtime started" "$TMP/background-tracing.log" || fail "background log file did not receive daemon logs"
+kill -TERM "$BACKGROUND_PID"
+for _ in $(seq 1 20); do
+    state="$(ps -o stat= -p "$BACKGROUND_PID" 2>/dev/null | tr -d ' ' || true)"
+    [[ -z "$state" || "$state" == Z* ]] && break
+    sleep 1
+done
+state="$(ps -o stat= -p "$BACKGROUND_PID" 2>/dev/null | tr -d ' ' || true)"
+if [[ -n "$state" && "$state" != Z* ]]; then
+    fail "background daemon did not stop after SIGTERM"
+fi
+ip netns exec "$NS" nft list table inet vpn_relay_it >/dev/null 2>&1 && fail "background daemon left its nftables table after shutdown"
+ip netns exec "$NS" ip link show dev wg-server >/dev/null 2>&1 && fail "background daemon left its TUN interface after shutdown"
+[[ "$(ip netns exec "$NS" sysctl -n net.ipv4.ip_forward)" == "0" ]] || fail "background daemon did not restore IPv4 forwarding"
 
 REAL_NFT="$(command -v nft)"
 mkdir -p "$TMP/fail-nft-bin"
