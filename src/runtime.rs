@@ -884,8 +884,6 @@ impl Runtime {
         self.config = candidate;
         self.prepared_interfaces = prepared;
         self.routing = next_routing;
-        self.stats_interval = Duration::from_secs(self.config.daemon.stats_interval_secs);
-
         // Only after nftables selects the new marks can old policy routes be
         // removed. Retain the old plan until cleanup succeeds so Drop can retry.
         if route_resources_changed {
@@ -1097,7 +1095,7 @@ impl Runtime {
             .map_err(|error| RuntimeError::Control(error.to_string()))?;
         let mut response = Vec::new();
         (&mut stream)
-            .take(64 * 1024)
+            .take(4 * 1024 * 1024)
             .read_to_end(&mut response)
             .map_err(|error| RuntimeError::Control(error.to_string()))?;
         let response: ControlResponse = serde_json::from_slice(&response)
