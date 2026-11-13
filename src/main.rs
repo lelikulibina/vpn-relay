@@ -302,7 +302,10 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
         }
         close_extra_fds(startup_fd);
         init_logging(log_path, &log_level)?;
-        tracing::info!(pid = std::process::id(), "vpn-relay background daemon starting");
+        tracing::info!(
+            pid = std::process::id(),
+            "vpn-relay background daemon starting"
+        );
         Runtime::start(config).map_err(|error| -> Box<dyn std::error::Error> { Box::new(error) })
     })();
 
