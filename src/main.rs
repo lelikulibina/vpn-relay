@@ -212,9 +212,10 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
     if unsafe { libc::pipe2(pipe_fds.as_mut_ptr(), libc::O_CLOEXEC) } != 0 {
         return Err(std::io::Error::last_os_error().into());
     }
-    for fd in &mut pipe_fds {
-        if *fd <= 2 {
-            let duplicate = unsafe { libc::fcntl(*fd, libc::F_DUPFD_CLOEXEC, 3) };
+    for index in 0..pipe_fds.len() {
+        let fd = pipe_fds[index];
+        if fd <= 2 {
+            let duplicate = unsafe { libc::fcntl(fd, libc::F_DUPFD_CLOEXEC, 3) };
             if duplicate < 0 {
                 let error = std::io::Error::last_os_error();
                 unsafe {
@@ -224,9 +225,9 @@ fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn st
                 return Err(error.into());
             }
             unsafe {
-                libc::close(*fd);
+                libc::close(fd);
             }
-            *fd = duplicate;
+            pipe_fds[index] = duplicate;
         }
     }
 
