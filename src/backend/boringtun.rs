@@ -128,6 +128,12 @@ impl TunnelHandle for BoringTunHandle {
                 .into_iter()
                 .map(|peer| TunnelPeerSnapshot {
                     public_key: peer.public_key,
+                    allowed_ips: peer
+                        .allowed_ips
+                        .iter()
+                        .map(|allowed_ip| format!("{}/{}", allowed_ip.addr, allowed_ip.cidr))
+                        .collect(),
+                    endpoint: peer.endpoint,
                     tx_bytes: peer.tx_bytes,
                     rx_bytes: peer.rx_bytes,
                     time_since_last_handshake: peer.time_since_last_handshake,
