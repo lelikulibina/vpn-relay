@@ -70,7 +70,7 @@ fail() {
     echo "vpn-relay peer traffic test ($PROTO): $*" >&2
     dump_namespace_diagnostics "$CLIENT_NS"
     dump_namespace_diagnostics "$SERVER_NS"
-    for log in "$TMP/server.log" "$TMP/client.log" "$TMP/server-iperf.log" "$TMP/client-iperf.log" "$TMP/peer-update-continuous-ping.log" "$TMP/peer-update-continuous-reverse-ping.log" "$TMP/reload-peer-add.log" "$TMP/reload-peer-remove.log" "$TMP/reload-dns-failure.log" "$TMP/forged-reply-client.log" "$TMP/forged-reply-tun.log" "$TMP/unmanaged-input-server.log" "$TMP/unmanaged-input-reply-tun.log" "$TMP/" "$TMP/"; do
+    for log in "$TMP/server.log" "$TMP/client.log" "$TMP/server-tracing.log" "$TMP/client-tracing.log" "$TMP/server-restarted-tracing.log" "$TMP/server-iperf.log" "$TMP/client-iperf.log" "$TMP/peer-update-continuous-ping.log" "$TMP/peer-update-continuous-reverse-ping.log" "$TMP/reload-peer-add.log" "$TMP/reload-peer-remove.log" "$TMP/reload-dns-failure.log" "$TMP/forged-reply-client.log" "$TMP/forged-reply-tun.log" "$TMP/unmanaged-input-server.log" "$TMP/unmanaged-input-reply-tun.log" "$TMP/" "$TMP/"; do
         if [[ -f "$log" ]]; then
             echo "--- $log ---" >&2
             cat "$log" >&2
@@ -258,9 +258,9 @@ TOML
 "$BIN" --config "$TMP/server.toml" --check >/dev/null
 "$BIN" --config "$TMP/client.toml" --check >/dev/null
 
-ip netns exec "$SERVER_NS" "$BIN" --config "$TMP/server.toml" >"$TMP/server.log" 2>&1 &
+ip netns exec "$SERVER_NS" "$BIN" --config "$TMP/server.toml" --log "$TMP/server-tracing.log" >"$TMP/server.log" 2>&1 &
 SERVER_PID=$!
-ip netns exec "$CLIENT_NS" "$BIN" --config "$TMP/client.toml" >"$TMP/client.log" 2>&1 &
+ip netns exec "$CLIENT_NS" "$BIN" --config "$TMP/client.toml" --log "$TMP/client-tracing.log" >"$TMP/client.log" 2>&1 &
 CLIENT_PID=$!
 
 for _ in $(seq 1 40); do
@@ -802,26 +802,42 @@ sleep 2
 
 assert_peer_counters() {
     local side="$1"
-    local log="$2"
-    local stats
-    # Strip ANSI color sequences before matching structured tracing fields.
-    stats="$(python3 - "$log" <<'PY'
+    local ns="$2"
+    local expected_ip="$3"
+    local stats_file="$TMP/$side-stats.txt"
+
+    ip netns exec "$ns" "$BIN" --stats >"$stats_file" 2>&1 \
+        || fail "$side failed to retrieve on-demand peer statistics"
+    grep -Fq "$expected_ip" "$stats_file" \
+        || fail "$side statistics omitted client AllowedIPs $expected_ip"
+
+    python3 - "$stats_file" "$side" <<'PY'
 import re
 import sys
-with open(sys.argv[1], encoding="utf-8", errors="replace") as stream:
-    for line in stream:
-        line = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", line)
-        if "peer statistics" in line:
-            print(line, end="")
+
+path, side = sys.argv[1:]
+text = open(path, encoding="utf-8", errors="replace").read()
+rows = [
+    line for line in text.splitlines()
+    if re.match(r"^[0-9a-f]{64}\s", line)
+]
+if not rows:
+    raise SystemExit(f"{side}: statistics table contains no peer rows")
+
+units = {"B": 1, "KB": 1000, "MB": 1000**2, "GB": 1000**3, "TB": 1000**4}
+for row in rows:
+    values = re.findall(r"(\d+(?:\.\d+)?)\s+(B|KB|MB|GB|TB)", row)
+    if len(values) < 2:
+        raise SystemExit(f"{side}: peer row has no readable RX/TX counters: {row}")
+    received = float(values[0][0]) * units[values[0][1]]
+    sent = float(values[1][0]) * units[values[1][1]]
+    if received <= 0 or sent <= 0:
+        raise SystemExit(f"{side}: peer RX/TX counters did not both increase: {row}")
 PY
-    )"
-    [[ -n "$stats" ]] || fail "$side did not publish peer statistics"
-    grep -Eq 'tx_bytes=[1-9][0-9]*.*rx_bytes=[1-9][0-9]*|rx_bytes=[1-9][0-9]*.*tx_bytes=[1-9][0-9]*' <<<"$stats" \
-        || fail "$side peer TX/RX byte counters did not both increase"
 }
 
-assert_peer_counters server "$TMP/server.log"
-assert_peer_counters client "$TMP/client.log"
+assert_peer_counters server "$SERVER_NS" "10.77.0.2/32"
+assert_peer_counters client "$CLIENT_NS" "10.77.0.1/32"
 
 # Restart the remote daemon without restarting the local peer. Persistent
 # keepalive must re-establish the session and restore bidirectional delivery.
@@ -829,7 +845,7 @@ kill -TERM "$SERVER_PID" || fail "could not stop server daemon for reconnect tes
 wait "$SERVER_PID" || fail "server daemon failed during reconnect shutdown"
 SERVER_PID=""
 sleep 1
-ip netns exec "$SERVER_NS" "$BIN" --config "$TMP/server.toml" >"$TMP/server-restarted.log" 2>&1 &
+ip netns exec "$SERVER_NS" "$BIN" --config "$TMP/server.toml" --log "$TMP/server-restarted-tracing.log" >"$TMP/server-restarted.log" 2>&1 &
 SERVER_PID=$!
 recovered=0
 for _ in $(seq 1 40); do
