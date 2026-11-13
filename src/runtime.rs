@@ -1135,7 +1135,9 @@ impl Runtime {
                             endpoint: peer.endpoint,
                             tx_bytes: peer.tx_bytes,
                             rx_bytes: peer.rx_bytes,
-                            handshake_age_secs: peer.time_since_last_handshake.map(|age| age.as_secs()),
+                            handshake_age_secs: peer
+                                .time_since_last_handshake
+                                .map(|age| age.as_secs()),
                         })
                         .collect(),
                 })
