@@ -41,9 +41,20 @@ sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml
 
 ## Управление работающим daemon
 
+Без параметра --log демон не создаёт лог-файлы и не пишет в stdout/stderr. Параметр --log без пути использует /var/log/vpn-relay.log. По умолчанию демон работает в foreground; --background отделяет его от терминала. Эти режимы не требуют systemd или другого менеджера служб.
+
 Команды управления обращаются к уже запущенному экземпляру в том же network namespace:
 
 ~~~sh
+# Запуск в фоне с логированием в стандартный файл
+sudo target/release/vpn-relay --background --log
+
+# Запуск в фоне с пользовательским файлом логов
+sudo target/release/vpn-relay --background --log /var/log/vpn-relay-custom.log
+
+# Получить подробную статистику пиров
+sudo target/release/vpn-relay --stats
+
 # Применить полный конфигурационный файл без перезапуска daemon
 sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --reload
 
