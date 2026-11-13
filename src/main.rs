@@ -355,8 +355,8 @@ fn print_stats(interfaces: &[InterfaceStats]) {
             println!(
                 "{:<64}  {:<39}  {:<21}  {:>12}  {:>12}  {:>12}",
                 peer.public_key,
-                truncate(&ips, 39),
-                truncate(&endpoint, 21),
+                ips,
+                endpoint,
                 format_bytes(peer.rx_bytes),
                 format_bytes(peer.tx_bytes),
                 format_handshake(peer.handshake_age_secs)
@@ -400,17 +400,6 @@ fn format_handshake(age: Option<u64>) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn truncate(value: &str, max_chars: usize) -> String {
-    let mut chars = value.chars();
-    let prefix: String = chars.by_ref().take(max_chars.saturating_sub(1)).collect();
-    if chars.next().is_some() {
-        format!("{prefix}…")
-    } else {
-        value.to_owned()
-    }
-}
-
-#[cfg(target_os = "linux")]
 use std::os::fd::FromRawFd;
 
 #[cfg(all(test, target_os = "linux"))]
@@ -435,10 +424,4 @@ mod tests {
         assert_eq!(format_handshake(Some(172_800)), "2д назад");
     }
 
-    #[test]
-    fn table_cells_are_truncated_without_panicking() {
-        assert_eq!(truncate("short", 10), "short");
-        assert_eq!(truncate("abcdefgh", 5), "abcd…");
-        assert_eq!(truncate("10.0.0.2/32", 1), "…");
-    }
 }
