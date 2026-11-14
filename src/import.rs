@@ -22,7 +22,7 @@ pub enum ImportError {
     Write(String),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub struct ImportReport {
     pub tunnel_type: TunnelType,
     pub warnings: Vec<String>,
@@ -44,6 +44,39 @@ pub fn interface_exists(config_path: &Path, name: &str) -> Result<bool, ImportEr
         .parse()
         .map_err(|e: toml::de::Error| ImportError::Config(e.to_string()))?;
     Ok(value.get("interfaces").and_then(|v| v.get(name)).is_some())
+}
+
+/// Parse an imported WireGuard/AmneziaWG document and merge it into an
+/// in-memory configuration. This is shared by the offline file importer and
+/// the daemon Control API so both paths use identical parsing and validation.
+pub fn import_into_config(
+    current: &Config,
+    source: &str,
+    name: &str,
+    replace: bool,
+) -> Result<(Config, ImportReport), ImportError> {
+    let (interface, warnings) = parse_interface(source)?;
+    let replaced = current.interfaces.contains_key(name);
+    if replaced && !replace {
+        return Err(ImportError::Exists(name.to_owned()));
+    }
+    let mut candidate = current.clone();
+    candidate.interfaces.insert(name.to_owned(), interface.clone());
+    candidate
+        .validate()
+        .map_err(|error| ImportError::Config(error.to_string()))?;
+    #[cfg(target_os = "linux")]
+    crate::backend::BackendRegistry::default()
+        .validate_config(&candidate)
+        .map_err(|error| ImportError::Config(error.to_string()))?;
+    Ok((
+        candidate,
+        ImportReport {
+            tunnel_type: interface.tunnel_type,
+            warnings,
+            replaced,
+        },
+    ))
 }
 
 pub fn import_file(
