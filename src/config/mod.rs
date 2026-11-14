@@ -135,8 +135,6 @@ impl Config {
         let input = fs::read_to_string(path)?;
         Self::parse_toml(&input)
     }
-
-
 }
 
 fn invalid<T>(message: impl Into<String>) -> Result<T, ConfigError> {
