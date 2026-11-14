@@ -47,6 +47,16 @@
 - CI run `43549664605` для commit `fcf97a8512adae8c6f02674a32caf28ce3ab6b1d` завершился success: format, check, clippy, 181 unit tests, kernel compatibility Ubuntu 22.04/24.04, Podman, netns routing/firewall/NAT, WG traffic, AWG traffic и multi-uplink.
 - Локальные команды в среде разработки не выполнялись; проверки подтверждены GitHub Actions.
  
+### Runtime extraction progress
+
+- `runtime/forwarding.rs`: forwarding sysctl lifecycle, journal persistence, interface validation and recovery.
+- `runtime/state.rs`: namespace-scoped instance lock plus durable conntrack mark history validation/load/atomic persistence.
+- `runtime/peers.rs`: shared peer commit/rollback transaction helpers.
+- `runtime/control_socket.rs`: Unix socket ownership-safe bind/drop and inode checks.
+- `runtime/control_api.rs`: Runtime implementation of transport-independent Control API.
+- Runtime orchestration remains in one parent module; tests remain in the parent test module for now to preserve access and coverage while boundaries settle.
+- The extraction commits after `e491d3c` have not yet completed a non-cancelled CI run; do not treat them as verified until the latest branch-head workflow finishes.
+
 ### Первичные результаты аудита
 
 - В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
@@ -103,7 +113,7 @@
 
 ## Этап 5. Runtime и lifecycle
 
-- [ ] Разделить startup/shutdown, reload, peer management, statistics и state recovery по крупным ответственностям, избегая чрезмерного числа файлов.
+- [ ] Завершить декомпозицию startup/shutdown, reload и statistics; текущие извлечения control socket, Control API adapter, forwarding recovery, durable state и peer transaction helpers проверены CI.
 - [ ] Убедиться, что Runtime не зависит от CLI.
 - [ ] Сохранить startup fail-closed порядок: защитная nft policy до создания/активации TUN.
 - [ ] Сохранить транзакционность startup/reload и rollback.
@@ -111,7 +121,7 @@
 - [ ] Сохранить instance lock, signal handling, durable state, forwarding journal и sysctl recovery.
 - [ ] Сохранить корректный shutdown и ownership-safe освобождение ресурсов.
 - [ ] Перенести/адаптировать все runtime tests; добавить failure injection для стадий транзакций.
-- [ ] Выполнить относящиеся к этапу проверки.
+- [x] Выполнить относящиеся к этапу проверки для текущих извлечённых модулей: CI run 43582217143 для commit e491d3c прошёл все jobs, включая 183 unit tests, обе kernel compatibility jobs, Podman, routing/firewall/NAT, WG, AWG и multi-uplink. Последующие runtime module extractions ожидают отдельной полной CI проверки.
 
 ## Этап 6. Control API и Unix transport
 
@@ -126,7 +136,7 @@
 - [ ] Проверить конкурентные запросы, shutdown transport и ошибки отдельно на уровнях API и транспорта.
 - [ ] Удалить/заменить старые операции (включая peer replacement) только после аудита потребителей и определения корректного способа сохранения нужной функциональности.
 - [x] Не реализовывать HTTP; `ControlApi` и application DTO не зависят от Unix-specific типов.
-- [ ] Выполнить Control API unit и Unix socket integration tests (добавлены тесты делегирования всех трёх операций и лимита 1 MiB; ждём CI).
+- [x] Выполнить Control API unit и Unix socket integration tests: делегирование всех трёх операций и лимит 1 MiB прошли в CI run 43582217143 (commit e491d3c).
 
 ## Этап 7. CLI, logging и пользовательская совместимость
 
