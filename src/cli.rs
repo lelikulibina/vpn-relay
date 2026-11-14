@@ -141,7 +141,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let config = Config::load(&config_path)?;
     if let Some(interface_name) = replace_peers_interface {
-        let interface = config.interfaces.get(&interface_name).ok_or_else(|| {
+        let _interface = config.interfaces.get(&interface_name).ok_or_else(|| {
             format!(
                 "interface '{interface_name}' is missing from {}",
                 config_path.display()
