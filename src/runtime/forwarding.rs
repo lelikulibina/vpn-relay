@@ -18,8 +18,8 @@ pub(super) struct InterfaceForwardingState {
     /// True when this link is created and destroyed by vpn-relay's TUN backend.
     #[serde(default)]
     pub(super) daemon_owned: bool,
-    ipv4: String,
-    ipv4_changed: bool,
+    pub(super) ipv4: String,
+    pub(super) ipv4_changed: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

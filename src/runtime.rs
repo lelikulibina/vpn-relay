@@ -10,6 +10,8 @@ use crate::routing::RoutingPlan;
 mod control_api;
 mod control_socket;
 mod forwarding;
+mod lifecycle;
+mod reload;
 mod peers;
 mod state;
 use control_socket::*;
