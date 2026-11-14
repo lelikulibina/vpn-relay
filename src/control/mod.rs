@@ -1,5 +1,6 @@
 mod api;
 pub mod dispatch;
+#[cfg(target_os = "linux")]
 pub mod unix;
 
 pub use api::{

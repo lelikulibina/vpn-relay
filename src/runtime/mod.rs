@@ -443,7 +443,7 @@ impl ControlApi for Runtime {
 }
 
 fn runtime_control_error(error: RuntimeError) -> ControlError {
-    let kind = match error {
+    let kind = match &error {
         RuntimeError::Configuration(_) => ControlErrorKind::Configuration,
         RuntimeError::AlreadyRunning(_) => ControlErrorKind::Conflict,
         RuntimeError::FatalTransition(_) => ControlErrorKind::Fatal,
