@@ -408,6 +408,8 @@ impl Runtime {
         })
     }
 
+}
+
 fn install_signal_handlers() -> Result<(), RuntimeError> {
     SHUTDOWN_REQUESTED.store(false, Ordering::Relaxed);
     unsafe {

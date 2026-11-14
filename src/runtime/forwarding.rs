@@ -1,6 +1,11 @@
 //! Durable forwarding state and sysctl recovery for the Linux runtime.
 
 use super::RuntimeError;
+use crate::linux;
+use std::fs::{self, File, OpenOptions};
+use std::io::Read;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::path::Path;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub(super) struct ForwardingState {
@@ -29,13 +34,6 @@ pub(super) struct ForwardingStateFile {
     pub(super) namespace_inode: u64,
     pub(super) state: ForwardingState,
 }
-
-
-use crate::linux;
-use std::fs::{self, File, OpenOptions};
-use std::io::Read;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::Path;
 
 pub(super) fn read_sysctl(key: &str) -> Result<String, RuntimeError> {
     let output = std::process::Command::new("sysctl")
