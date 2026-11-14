@@ -175,7 +175,7 @@ impl UnixTransport {
                 }
             },
             Err(error) => {
-                dispatch::invalid_request(format!("failed to read control request: {error}"))
+                dispatch::transport_unavailable(format!("failed to read control request: {error}"))
             }
         };
 
