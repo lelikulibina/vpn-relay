@@ -2,7 +2,7 @@
 
 Ветка: `refactor/modular-control-api-nftables`
 
-Аудит выполнен по состоянию ветки на commit `ecb7959ea7c912cc91d69b00c341c5404d6bf334`. Это инвентаризация исходного состояния до изменения CI и протокольных тестов. Время выполнения и повторяемость ещё требуют измерения на Linux runner; значения не предполагаются.
+Аудит исходного состояния выполнен по commit `ecb7959ea7c912cc91d69b00c341c5404d6bf334`. Реализация первой итерации тестового этапа добавлена в последующих коммитах этой ветки. Время выполнения и повторяемость требуют подтверждения по результатам GitHub Actions; значения заранее не предполагаются.
 
 ## 1. Текущее состояние CI
 
@@ -15,7 +15,7 @@
 | `integration` | config check, netns, WG traffic, AWG traffic, multi-uplink | все проверки последовательно в одном job; timeout 45 минут |
 | `podman` | сборка rootful Podman image и запуск deployment smoke test | отдельный job |
 
-Важное ограничение исходного workflow: push-триггер включён только для `main` и `daemon-improvements`; push в текущую ветку `refactor/modular-control-api-nftables` не запускает workflow. PR workflow запускается для PR в `main`.
+Важное ограничение исходного workflow: push-триггер был включён только для `main` и `daemon-improvements`; push в refactor-ветки не запускал workflow. Это исправлено: push в `refactor/**` теперь запускает CI. PR workflow по-прежнему запускается для PR в `main`.
 
 ## 2. Rust-тесты
 
@@ -69,36 +69,42 @@
 
 ## 5. Протокольное покрытие: обнаруженный пробел
 
-Текущий `vpn-relay-peer-traffic-test.sh` принимает только `wg` и `awg`. Для AWG он генерирует конфигурацию `type = "awg"`, но не добавляет AWG 3.1 extension fields. В `src/config.rs` есть unit test `parses_awg_30_and_31_extension_parameters`, который проверяет парсинг и backend validation полей AWG 3.0/3.1, однако отдельного live traffic сценария AWG 3.1 в CI нет.
+Исходный `vpn-relay-peer-traffic-test.sh` принимал только `wg` и `awg`; AWG 3.1 extension fields не задавались. Harness расширен до трёх режимов `wg`, `awg3`, `awg31`. В режиме `awg3` на обеих сторонах задаются AWG 3.0-параметры; `awg31` дополнительно включает поля `i1..i5`, header protection key, padding и rekey/keepalive ranges. Набор значений взят из конфигурационного теста `parses_awg_30_and_31_extension_parameters`.
 
-Следовательно:
-- WG имеет отдельный live datapath test;
-- AWG имеет один live datapath test без явного выбора/проверки профиля 3.1;
-- AWG 3.1 покрыт только config/backend validation, не handshake и передачей трафика.
-
-Требуемое исправление: расширить peer traffic harness до трёх режимов `wg`, `awg3`, `awg31`. Для `awg31` использовать набор 3.1 extension fields, уже проверяемый конфигурационным unit test; конфигурацию и handshake проверять на обеих сторонах туннеля. Не считать AWG 3.1 покрытым, пока этот режим не пройдёт реальный трафик в CI.
+Оба AWG-профиля используют тот же реальный handshake и двусторонний ICMP/TCP/UDP сценарий, что и WG; перед запуском daemon обе конфигурации проходят `--check`. Результат live traffic пока считается неподтверждённым до успешного выполнения новых CI matrix entries.
 
 ## 6. Целевая декомпозиция CI
 
-После подготовки протокольного harness разнести jobs:
+Протокольный harness и CI уже разделены в `.github/workflows/ci.yaml`:
 
 | Job | Набор |
 |---|---|
 | `quality` | fmt, check, clippy, Rust unit tests |
 | `kernel-compatibility` | matrix Ubuntu 22.04/24.04, два per-interface сценария |
 | `network-core` | config check + `vpn-relay-netns-test.sh` |
-| `protocol-wg` | peer traffic `wg` |
-| `protocol-awg3` | peer traffic `awg3` |
-| `protocol-awg31` | peer traffic `awg31` |
+| `protocol-traffic` matrix / `WireGuard` | peer traffic `wg` |
+| `protocol-traffic` matrix / `AmneziaWG 3` | peer traffic `awg3` |
+| `protocol-traffic` matrix / `AmneziaWG 3.1` | peer traffic `awg31` |
 | `multi-uplink` | `vpn-relay-multi-uplink-test.sh` |
 | `podman` | существующий rootful deployment smoke test |
 
-Jobs должны использовать отдельные GitHub-hosted runners, иметь явные timeout и `fail-fast: false` там, где есть matrix. Rust cache можно использовать для снижения повторной сборки. Не делать общий build job обязательным предшественником всех сетевых jobs: это сериализует старт интеграционных проверок и может увеличить wall-clock время.
+Jobs/matrix entries используют отдельные GitHub-hosted runners, имеют явные timeout; протокольная matrix настроена с `fail-fast: false` и `max-parallel: 3`. Добавлен Cargo cache. Общий build job не является обязательным предшественником сетевых jobs, поэтому они могут стартовать параллельно.
 
 ## 7. Порядок реализации
 
-1. Добавить этот аудит и сохранить текущий тестовый набор без удаления.
-2. Расширить peer traffic harness до WG/AWG 3/AWG 3.1.
-3. Разделить CI на независимые jobs и включить push trigger для refactor веток.
-4. Проверить CI результаты, длительность и логи; выполнить повторные запуски для подтверждения изоляции.
-5. Только после получения фактических результатов пересмотреть кандидатов на объединение/nightly/manual/удаление.
+1. Выполнено: аудит добавлен, тестовый набор сохранён без удаления.
+2. Выполнено: peer traffic harness расширен до WG/AWG 3/AWG 3.1.
+3. Выполнено: CI разделён на независимые jobs/matrix entries, push trigger для `refactor/**` включён.
+4. Ожидает CI: проверить результаты, длительность и логи; выполнить повторные запуски для подтверждения изоляции.
+5. После получения фактических результатов пересмотреть кандидатов на объединение/nightly/manual/удаление.
+
+## 8. Состояние первой реализации
+
+Реализовано в ветке:
+- добавлен `docs/TEST_AUDIT.md` с инвентаризацией и решением сохранить все текущие проверки;
+- peer traffic harness принимает `wg`, `awg3`, `awg31`;
+- CI разделён на `quality`, `kernel-compatibility`, `network-core`, протокольную matrix, `multi-uplink` и `podman`;
+- три протокольных сценария могут исполняться одновременно на отдельных runners;
+- push trigger включает `refactor/**`, добавлены Cargo cache и явные timeouts.
+
+Не подтверждено до получения CI результатов: успешность реального AWG 3/AWG 3.1 handshake, фактическое wall-clock ускорение и стабильность повторных конкурентных запусков. Никакие существующие тесты не удалялись и не переводились в nightly/manual.
