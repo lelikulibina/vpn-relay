@@ -26,9 +26,21 @@ impl ControlError {
 }
 
 /// Request to validate and transactionally apply a complete configuration.
+#[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum ReloadConfigMode {
+    #[default]
+    Full,
+    /// Preserve the legacy --replace-peers behavior: copy only this interface's
+    /// peer set from the supplied file, ignoring all other file changes.
+    ReplacePeers { interface: String },
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
 pub struct ReloadConfigRequest {
     pub toml: String,
+    #[serde(default)]
+    pub mode: ReloadConfigMode,
 }
 
 /// Request to import one WireGuard/AmneziaWG interface into the active config.
@@ -57,6 +69,8 @@ pub(crate) enum ControlRequest {
     GetStats,
     ReloadConfig {
         toml: String,
+        #[serde(default)]
+        mode: ReloadConfigMode,
     },
     ImportConfig {
         source: String,
@@ -127,7 +141,7 @@ pub(crate) fn handle_unix_connection(
                         Err(error) => Err(error),
                     },
                     ControlRequest::ReloadConfig { toml } => {
-                        api.reload_config(ReloadConfigRequest { toml })
+                        api.reload_config(ReloadConfigRequest { toml, mode })
                     }
                     ControlRequest::ImportConfig {
                         source,
