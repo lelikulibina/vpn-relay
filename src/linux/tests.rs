@@ -670,7 +670,10 @@ fn nft_apply_creates_missing_table_with_typed_json_batch() {
     assert!(objects[0].get("delete").is_none());
     assert_eq!(objects[0]["add"]["table"]["family"], "inet");
     assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
-    assert_eq!(objects[0]["add"]["table"]["comment"], "managed by vpn-relay");
+    assert_eq!(
+        objects[0]["add"]["table"]["comment"],
+        "managed by vpn-relay"
+    );
     assert_eq!(objects[1]["add"]["set"]["name"], "managed_interfaces");
 }
 
@@ -691,7 +694,10 @@ fn nft_apply_replaces_owned_table_in_one_atomic_json_batch() {
     let objects = document["nftables"].as_array().unwrap();
     assert_eq!(objects[0]["delete"]["table"]["family"], "inet");
     assert_eq!(objects[0]["delete"]["table"]["name"], "vpn_relay");
-    assert_eq!(objects[1]["add"]["table"]["comment"], "managed by vpn-relay");
+    assert_eq!(
+        objects[1]["add"]["table"]["comment"],
+        "managed by vpn-relay"
+    );
     assert!(matches!(result, Err(LinuxError::Command { ref stderr, .. })
         if stderr.contains("injected transaction failure")));
 }
@@ -719,7 +725,10 @@ fn nft_remove_does_not_delete_when_inspection_fails() {
         result,
         Err(LinuxError::Command { ref stderr, .. }) if stderr == "permission denied"
     ));
-    assert_eq!(delete_calls, 0, "delete must not run after failed inspection");
+    assert_eq!(
+        delete_calls, 0,
+        "delete must not run after failed inspection"
+    );
 }
 
 #[test]
@@ -736,7 +745,10 @@ fn nft_remove_skips_missing_table_and_propagates_json_delete_failure() {
     let result = remove_nft_with(&plan, &mut |_plan| Ok(true), &mut |payload| {
         delete_calls += 1;
         let document: serde_json::Value = serde_json::from_str(payload).unwrap();
-        assert_eq!(document["nftables"][0]["delete"]["table"]["name"], "vpn_relay");
+        assert_eq!(
+            document["nftables"][0]["delete"]["table"]["name"],
+            "vpn_relay"
+        );
         Err(LinuxError::Command {
             program: "nft -j -f -".into(),
             status: "exit status 1".into(),

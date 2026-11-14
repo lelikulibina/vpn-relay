@@ -18,7 +18,8 @@ use std::net::Ipv4Addr;
 const OWNERSHIP_COMMENT: &str = "managed by vpn-relay";
 
 fn parse_object(value: Value) -> Result<NfListObject<'static>, String> {
-    serde_json::from_value(value).map_err(|error| format!("invalid nftables schema object: {error}"))
+    serde_json::from_value(value)
+        .map_err(|error| format!("invalid nftables schema object: {error}"))
 }
 
 fn add_object(batch: &mut Batch<'static>, value: Value) -> Result<(), String> {
@@ -208,11 +209,7 @@ fn append_protocol_match(
     Ok(())
 }
 
-fn append_ports(
-    expressions: &mut Vec<Value>,
-    protocol: &str,
-    ports: &[u16],
-) -> Result<(), String> {
+fn append_ports(expressions: &mut Vec<Value>, protocol: &str, ports: &[u16]) -> Result<(), String> {
     if ports.is_empty() {
         return Err("firewall port selector cannot be empty".into());
     }
@@ -226,11 +223,7 @@ fn append_ports(
     Ok(())
 }
 
-fn interface_match(
-    plan: &RoutingPlan,
-    direction: &str,
-    interface: &str,
-) -> Result<Value, String> {
+fn interface_match(plan: &RoutingPlan, direction: &str, interface: &str) -> Result<Value, String> {
     if let Some(indices) = &plan.interface_indices {
         let index = indices
             .get(interface)
@@ -272,7 +265,11 @@ fn append_firewall_rule(
     if prefixes.is_empty() {
         expressions.push(matching(meta("nfproto"), "==", json!("ipv4")));
     } else {
-        append_prefix_match(&mut expressions, if direction == "iif" { "saddr" } else { "daddr" }, prefixes)?;
+        append_prefix_match(
+            &mut expressions,
+            if direction == "iif" { "saddr" } else { "daddr" },
+            prefixes,
+        )?;
     }
     append_protocol_match(&mut expressions, rule.protocol, rule.ports.as_deref())?;
     expressions.push(ct_state(&["new", "established", "related"]));
@@ -457,7 +454,11 @@ fn append_nat_rule(
     add_rule(batch, plan, "postrouting", expressions)
 }
 
-fn serialize_batch(batch: Batch<'static>, plan: &RoutingPlan, patch_interface_index: bool) -> Result<String, String> {
+fn serialize_batch(
+    batch: Batch<'static>,
+    plan: &RoutingPlan,
+    patch_interface_index: bool,
+) -> Result<String, String> {
     let mut document = serde_json::to_value(batch.to_nftables())
         .map_err(|error| format!("failed to serialize nftables batch: {error}"))?;
     let objects = document
@@ -538,7 +539,10 @@ pub(super) fn render(plan: &RoutingPlan, replace_owned: bool) -> Result<String, 
         &mut batch,
         plan,
         "input",
-        vec![managed_set_match(plan, "iif", "managed_interfaces")?, drop_verdict()],
+        vec![
+            managed_set_match(plan, "iif", "managed_interfaces")?,
+            drop_verdict(),
+        ],
     )?;
 
     add_rule(
@@ -577,7 +581,10 @@ pub(super) fn render(plan: &RoutingPlan, replace_owned: bool) -> Result<String, 
         &mut batch,
         plan,
         "output",
-        vec![managed_set_match(plan, "oif", "managed_interfaces")?, drop_verdict()],
+        vec![
+            managed_set_match(plan, "oif", "managed_interfaces")?,
+            drop_verdict(),
+        ],
     )?;
 
     // Restore the original routing mark for admitted replies; replies use the
@@ -672,13 +679,19 @@ pub(super) fn render(plan: &RoutingPlan, replace_owned: bool) -> Result<String, 
         &mut batch,
         plan,
         "forward",
-        vec![managed_set_match(plan, "iif", "managed_interfaces")?, drop_verdict()],
+        vec![
+            managed_set_match(plan, "iif", "managed_interfaces")?,
+            drop_verdict(),
+        ],
     )?;
     add_rule(
         &mut batch,
         plan,
         "forward",
-        vec![managed_set_match(plan, "oif", "managed_interfaces")?, drop_verdict()],
+        vec![
+            managed_set_match(plan, "oif", "managed_interfaces")?,
+            drop_verdict(),
+        ],
     )?;
 
     for decision in &plan.decisions {

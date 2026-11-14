@@ -128,11 +128,13 @@ where
     R: FnMut(&str) -> Result<(), LinuxError>,
 {
     let replace_owned = inspect_table(plan)?;
-    let payload = plan.nftables_json(replace_owned).map_err(|error| LinuxError::Command {
-        program: "nftables JSON builder".into(),
-        status: "invalid generated ruleset".into(),
-        stderr: error,
-    })?;
+    let payload = plan
+        .nftables_json(replace_owned)
+        .map_err(|error| LinuxError::Command {
+            program: "nftables JSON builder".into(),
+            status: "invalid generated ruleset".into(),
+            stderr: error,
+        })?;
     run_json(&payload)
 }
 
@@ -194,11 +196,12 @@ where
     if !inspect_table(plan)? {
         return Ok(());
     }
-    let payload = plan.nft_delete_json().map_err(|error| LinuxError::Command {
-        program: "nftables JSON builder".into(),
-        status: "invalid delete batch".into(),
-        stderr: error,
-    })?;
+    let payload = plan
+        .nft_delete_json()
+        .map_err(|error| LinuxError::Command {
+            program: "nftables JSON builder".into(),
+            status: "invalid delete batch".into(),
+            stderr: error,
+        })?;
     run_json(&payload)
 }
-
