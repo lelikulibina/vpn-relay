@@ -1,28 +1,28 @@
 use super::RuntimeError;
 use crate::linux;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::Path;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub(super) struct ForwardingState {
-    ipv4: String,
-    ipv4_changed: bool,
+    pub(super) ipv4: String,
+    pub(super) ipv4_changed: bool,
     /// Per-link state is optional so version-1 namespace-only journals remain readable.
     #[serde(default)]
-    interfaces: Vec<InterfaceForwardingState>,
+    pub(super) interfaces: Vec<InterfaceForwardingState>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
 pub(super) struct InterfaceForwardingState {
-    name: String,
-    ifindex: u32,
+    pub(super) name: String,
+    pub(super) ifindex: u32,
     /// True when this link is created and destroyed by vpn-relay's TUN backend.
     #[serde(default)]
-    daemon_owned: bool,
-    ipv4: String,
-    ipv4_changed: bool,
+    pub(super) daemon_owned: bool,
+    pub(super) ipv4: String,
+    pub(super) ipv4_changed: bool,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -537,17 +537,17 @@ pub(super) fn enable_interface_forwarding_durable(
             .map_err(|error| RuntimeError::Forwarding(error.to_string()))?;
         verify_forwarding_interface(name, ifindex)?;
         entries.push(InterfaceForwardingState {
-            name: name.clone(),
+            pub(super) name: name.clone(),
             ifindex,
-            daemon_owned: daemon_owned_names.contains(name),
-            ipv4: if ipv4 { "1" } else { "0" }.to_owned(),
-            ipv4_changed: false,
+            pub(super) daemon_owned: daemon_owned_names.contains(name),
+            pub(super) ipv4: if ipv4 { "1" } else { "0" }.to_owned(),
+            pub(super) ipv4_changed: false,
         });
     }
     let mut state = ForwardingState {
-        ipv4: "1".to_owned(),
-        ipv4_changed: false,
-        interfaces: entries,
+        pub(super) ipv4: "1".to_owned(),
+        pub(super) ipv4_changed: false,
+        pub(super) interfaces: entries,
     };
     for entry in &mut state.interfaces {
         entry.ipv4_changed = entry.ipv4 != "1";
@@ -683,9 +683,9 @@ pub(super) fn enable_forwarding_durable(
         );
     }
     let mut state = ForwardingState {
-        ipv4: read_sysctl("net.ipv4.ip_forward")?,
-        ipv4_changed: false,
-        interfaces: Vec::new(),
+        pub(super) ipv4: read_sysctl("net.ipv4.ip_forward")?,
+        pub(super) ipv4_changed: false,
+        pub(super) interfaces: Vec::new(),
     };
     state.ipv4_changed = state.ipv4 != "1";
     validate_forwarding_state(&state)?;
