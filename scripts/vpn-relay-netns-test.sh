@@ -1162,3 +1162,4 @@ grep -Fq "retaining fail-closed nftables policy" "$TMP/tun-identity-loss-tracing
 
 echo "vpn-relay namespace integration test passed"
 
+
