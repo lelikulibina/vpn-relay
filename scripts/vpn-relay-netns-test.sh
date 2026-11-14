@@ -333,7 +333,6 @@ timeout --signal=KILL 10s ip netns exec "$NS" env PATH="$TMP/fail-interface-and-
 startup_nft_cleanup_status=$?
 set -e
 echo "[vpn-relay-netns-test] startup nftables-cleanup scenario exited with status $startup_nft_cleanup_status" >&2
-ip netns exec "$NS" nft -j list table inet vpn_relay_it >&2 || true
 if [[ $startup_nft_cleanup_status -eq 124 || $startup_nft_cleanup_status -eq 137 ]]; then
     fail "daemon hung during startup rollback after injected nftables deletion failure"
 fi
@@ -360,7 +359,8 @@ REAL_IP="$(command -v ip)"
 mkdir -p "$TMP/fail-bootstrap-nft" "$TMP/fail-indexed-nft"
 cat >"$TMP/fail-bootstrap-nft/nft" <<EOF
 #!/bin/sh
-if [ "\$1" = "-f" ]; then
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
+    cat >/dev/null
     echo "injected bootstrap nftables transaction failure" >&2
     exit 42
 fi
@@ -369,7 +369,7 @@ EOF
 cat >"$TMP/fail-indexed-nft/nft" <<EOF
 #!/bin/sh
 COUNT_FILE="$TMP/indexed-nft-count"
-if [ "\$1" = "-f" ]; then
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
     count=0
     [ ! -f "\$COUNT_FILE" ] || count=\$(cat "\$COUNT_FILE")
     count=\$((count + 1))
@@ -635,7 +635,7 @@ exec "$REAL_IP" "\$@"
 EOF
 cat >"$TMP/fail-nft-bin/nft" <<EOF
 #!/bin/sh
-if [ -f "$TMP/fail-nft" ] && [ "\$1" = "-f" ]; then
+if [ -f "$TMP/fail-nft" ] && [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
     cat >/dev/null
     echo "injected nftables transaction failure" >&2
     exit 42

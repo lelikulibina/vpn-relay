@@ -1,10 +1,9 @@
 //! Typed nftables JSON API construction from a validated routing plan.
 //!
 //! Objects are deserialized into the upstream `nftables` crate schema and
-//! assembled with its atomic `Batch`. Version 0.6.3 does not model table
-//! comments or the kernel's `iface_index` set datatype; those two wire fields
-//! are patched into the serialized JSON only, without introducing local copies
-//! of the upstream schema types.
+//! assembled with its atomic `Batch`. Version 0.6.3 does not model the kernel's
+//! `iface_index` set datatype; that wire field is patched after serialization
+//! without introducing local copies of upstream schema types.
 
 use super::{
     FirewallProtocol, NatAction, RoutingDecision, RoutingPlan, CONNTRACK_MARK_MASK,
