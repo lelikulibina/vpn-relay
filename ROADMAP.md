@@ -28,16 +28,16 @@
 - [x] Зафиксировать исходный commit и состояние рабочей ветки: `daemon-improvements` на `cff0e57747fc0d4238ecadb3519fe9f55ad41725`; рабочая ветка создана отдельно.
 - [x] Изучить `AGENTS.md`, README и NFTables documentation; первично изучены основные исходники. Детальный аудит каждого затрагиваемого участка продолжается перед соответствующим этапом.
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
-- [x] Инвентаризировать unit-, integration- и shell-тесты: 181 unit tests в Rust-модулях (тесты пока в основном inline) и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
-- [x] Проверить текущие CLI и control socket protocol: `get_stats`, `reload_config`, `replace_peers`; CLI-потребители найдены в `main.rs`. Решение по сохранению peer replacement ещё требует отдельного проектирования.
+- [x] Инвентаризировать unit-, integration- и shell-тесты: 181 unit tests на предыдущем полностью зелёном commit; в текущем шаге добавлены два Unix transport regression tests, точное новое число будет зафиксировано после CI. (тесты пока в основном inline) и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
+- [x] Проверить CLI и control socket protocol: `ControlApi` имеет три операции (`get_stats`, `reload_config`, `import_config`); peer-only replacement — режим `reload_config`. CLI находится в `src/cli.rs`.
 - [ ] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [ ] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
 - [x] Проверить baseline CI: commit `cff0e57747fc0d4238ecadb3519fe9f55ad41725` прошёл GitHub Actions run `43540974390` (success). Локальный запуск из текущей среды пока не выполнен.
 - [ ] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback.
 
-### Первичные результаты аудита
-
 ### Прогресс текущей ветки (2026-11-14)
+
+- Linux adapter декомпозирован: `linux.rs` — общие команды, interface identity и rtnetlink; `linux/nftables.rs` — ownership-safe nft lifecycle; `linux/policy_routing.rs` — iproute2 policy routing. Семантика команд не менялась.
 
 - Import parser отделён в `src/import/parser.rs`; `src/import.rs` оставлен orchestration/validation/atomic-write модулем. Конфигурационная модель пока не дробилась, поскольку её зависимости и тесты требуют отдельного аудита.
 
@@ -46,8 +46,8 @@
 - Импорт в работающий Runtime строит кандидат из содержимого профиля и применяет его через reload; исходный файл конфигурации не переписывается этим API. Существующий offline CLI import остаётся файловой операцией.
 - CI run `43549664605` для commit `fcf97a8512adae8c6f02674a32caf28ce3ab6b1d` завершился success: format, check, clippy, 181 unit tests, kernel compatibility Ubuntu 22.04/24.04, Podman, netns routing/firewall/NAT, WG traffic, AWG traffic и multi-uplink.
 - Локальные команды в среде разработки не выполнялись; проверки подтверждены GitHub Actions.
-
-## Первичные результаты аудита
+ 
+### Первичные результаты аудита
 
 - В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
 - Ownership текущей nft table опирается на table-level comment `managed by vpn-relay`; это часть защитной модели и должно сохраниться.
@@ -68,14 +68,14 @@
 
 ## Этап 2. Linux adapter
 
-- [ ] Разобрать ответственность текущего `linux.rs` и определить минимально необходимую декомпозицию.
-- [ ] Изолировать выполнение системных команд и обработку их результатов.
-- [ ] Разделить interface lifecycle/identity, policy routing и rtnetlink только если границы получаются самостоятельными.
-- [ ] Сохранить проверки fd/ifindex и запрет доверять одному лишь имени интерфейса.
-- [ ] Сохранить ownership-safe проверки и cleanup; не удалять чужие ресурсы.
-- [ ] Сохранить обработку ошибок, readback/verification и rollback.
-- [ ] Перенести/адаптировать существующие Linux tests и добавить failure-injection cases.
-- [ ] Выполнить относящиеся к этапу проверки.
+- [x] Разобрать ответственность `linux.rs`; выделены два самостоятельных адаптера `linux/nftables.rs` и `linux/policy_routing.rs`, без дальнейшего дробления интерфейсных/netlink helpers.
+- [x] Сохранить единый общий исполнитель системных команд `run` и общую обработку `LinuxError`; специализированные nft/iproute2 операции вынесены в adapters.
+- [x] Разделить policy routing и nftables на самостоятельные модули; interface identity и rtnetlink пока остаются вместе в `linux.rs`, поскольку тесно связаны с TUN/link lifecycle.
+- [x] Сохранить проверки fd/ifindex и запрет доверять одному лишь имени интерфейса (перенос не затрагивал эти функции).
+- [x] Сохранить ownership-safe checks и cleanup для nftables и iproute2; существующие проверки перенесены без изменения семантики.
+- [x] Сохранить обработку ошибок, readback/verification и rollback; функциональность не менялась.
+- [x] Существующие Linux tests сохранены и используют внутренние helpers через test-only imports; дополнительные failure-injection tests уже существуют в исходном модуле и остаются на месте.
+- [ ] Выполнить относящиеся к этапу проверки после текущего набора изменений (CI ожидается).
 
 ## Этап 3. NFTables migration
 
@@ -115,7 +115,7 @@
 
 ## Этап 6. Control API и Unix transport
 
-- [ ] Проверить все существующие socket operations и их потребителей до изменения протокола.
+- [x] Проверить все существующие socket operations и их потребителей до изменения протокола.
 - [x] Определить транспортно-независимые request/error types и границы application API.
 - [x] Реализовать ровно три согласованные операции: `reload_config`, `get_stats`, `import_config`.
 - [x] Перенести общую логику операций в `ControlApi` implementation для Runtime; транспорт только вызывает API.
@@ -126,7 +126,7 @@
 - [ ] Проверить конкурентные запросы, shutdown transport и ошибки отдельно на уровнях API и транспорта.
 - [ ] Удалить/заменить старые операции (включая peer replacement) только после аудита потребителей и определения корректного способа сохранения нужной функциональности.
 - [x] Не реализовывать HTTP; `ControlApi` и application DTO не зависят от Unix-specific типов.
-- [ ] Выполнить Control API unit и Unix socket integration tests.
+- [ ] Выполнить Control API unit и Unix socket integration tests (добавлены тесты делегирования всех трёх операций и лимита 1 MiB; ждём CI).
 
 ## Этап 7. CLI, logging и пользовательская совместимость
 
