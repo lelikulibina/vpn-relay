@@ -4,6 +4,10 @@ use serde_json::Value;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+mod exec;
+use exec::{output, run};
+pub use exec::run_ip;
+
 // Reserved iproute2 protocol tag identifying resources owned by vpn-relay.
 const ROUTING_PROTOCOL: &str = "242";
 
@@ -27,32 +31,6 @@ pub enum LinuxError {
     Cleanup(String),
     #[error("{operation}; rollback failed: {rollback}")]
     Rollback { operation: String, rollback: String },
-}
-
-fn output(program: &str, args: &[String]) -> Result<std::process::Output, LinuxError> {
-    Command::new(program)
-        .args(args)
-        .output()
-        .map_err(|source| LinuxError::Spawn {
-            program: program.to_owned(),
-            source,
-        })
-}
-
-fn run(program: &str, args: &[String]) -> Result<(), LinuxError> {
-    let output = output(program, args)?;
-    if output.status.success() {
-        return Ok(());
-    }
-    Err(LinuxError::Command {
-        program: format!("{} {}", program, args.join(" ")),
-        status: output.status.to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
-    })
-}
-
-pub fn run_ip(args: &[String]) -> Result<(), LinuxError> {
-    run("ip", args)
 }
 
 /// Return true only when the nftables table object itself carries our ownership marker.
