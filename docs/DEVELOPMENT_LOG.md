@@ -94,3 +94,5 @@
 
 - **R2 — подтверждение исправления CI:** run `43627171882` на HEAD `fcd333965a1806f8758d7ddd499be1d823412bb8` завершился `success`, все 9 jobs успешны. Quality job, включая `cargo test --locked --all-targets`, прошла; все kernel compatibility, network/protocol traffic, multi-uplink и Podman jobs также успешны.
 - **R2 — аудит error mapping и wire compatibility:** выявлено неверное отображение `RuntimeError::Control` в `InvalidRequest`: эта категория соответствует ошибке доступности control socket/transport, а не ошибке клиентского запроса. Исправлено на `Unavailable`; добавлены тесты стабильных Runtime error categories, сериализации категорий dispatcher и обработки legacy error response без поля `error_kind` на клиенте. Поведение wire format не меняется.
+
+- **R2 — исправление rustfmt:** run `43628308795` на HEAD `d13bb4689f31c945e56bdf45c82701df3872a8cb` выявил единственное форматное расхождение — лишнюю пустую строку перед тестом `runtime_control_errors_preserve_stable_categories`. Исправлено без изменения кода теста. Остальные шаги quality-job были пропущены после fmt failure; новый полный CI обязателен.

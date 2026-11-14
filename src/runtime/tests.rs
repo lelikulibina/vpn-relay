@@ -1395,7 +1395,6 @@ fn stats_control_response_preserves_client_and_endpoint_metadata() {
     assert_eq!(peer.handshake_age_secs, Some(12));
 }
 
-
 #[test]
 fn runtime_control_errors_preserve_stable_categories() {
     let cases = [
