@@ -2089,28 +2089,32 @@ mod tests {
     }
 
     #[test]
-    fn control_request_protocol_supports_peer_replacement_and_full_reload() {
-        let peer_request = ControlRequest::ReplacePeers {
-            interface: "wg0".to_owned(),
-            peers: Vec::new(),
-        };
-        let peer_json = serde_json::to_vec(&peer_request).unwrap();
-        assert!(String::from_utf8_lossy(&peer_json).contains("\"operation\":\"replace_peers\""));
-        assert_eq!(
-            serde_json::from_slice::<ControlRequest>(&peer_json).unwrap(),
-            peer_request
-        );
-
-        let reload_request = ControlRequest::ReloadConfig {
-            toml: "[interfaces.wg0]".to_owned(),
-        };
-        let reload_json = serde_json::to_vec(&reload_request).unwrap();
-        assert!(String::from_utf8_lossy(&reload_json).contains("\"operation\":\"reload_config\""));
-        assert_eq!(
-            serde_json::from_slice::<ControlRequest>(&reload_json).unwrap(),
-            reload_request
-        );
-        assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"unknown"}"#).is_err());
+    fn control_request_protocol_exposes_only_three_application_operations() {
+        let requests = [
+            ControlRequest::GetStats,
+            ControlRequest::ReloadConfig {
+                toml: "[interfaces.wg0]".to_owned(),
+            },
+            ControlRequest::ImportConfig {
+                source: "[Interface]\\nPrivateKey = test\\nAddress = 10.0.0.1/24".to_owned(),
+                interface: "wg0".to_owned(),
+                replace: true,
+            },
+        ];
+        let operations = ["get_stats", "reload_config", "import_config"];
+        for (request, operation) in requests.iter().zip(operations) {
+            let encoded = serde_json::to_vec(request).unwrap();
+            assert!(
+                String::from_utf8_lossy(&encoded)
+                    .contains(&format!("\\"operation\\":\\"{operation}\\""))
+            );
+            assert_eq!(
+                serde_json::from_slice::<ControlRequest>(&encoded).unwrap(),
+                *request
+            );
+        }
+        assert!(serde_json::from_slice::<ControlRequest>(br#"{\\"operation\\":\\"replace_peers\\"}"#).is_err());
+        assert!(serde_json::from_slice::<ControlRequest>(br#"{\\"operation\\":\\"unknown\\"}"#).is_err());
     }
 
     #[test]
@@ -3338,6 +3342,7 @@ mod tests {
         let response = ControlResponse {
             ok: true,
             error: None,
+            import_report: None,
             stats: Some(vec![InterfaceStats {
                 name: "wg0".to_owned(),
                 peers: vec![PeerStats {
