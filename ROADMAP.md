@@ -52,8 +52,8 @@
 - В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
 - Ownership текущей nft table опирается на table-level comment `managed by vpn-relay`; это часть защитной модели и должно сохраниться.
 - Изучена документация `nftables` 0.6.3: crate моделирует JSON API и применяет ruleset через helper, который вызывает исполняемый `nft`. В типе `schema::Table` отсутствует поле table comment, поэтому перед миграцией нужно отдельно решить, как сохранить ownership marker без дублирования schema. См. [crate docs](https://docs.rs/nftables/latest/nftables/) и [apply_ruleset_raw](https://docs.rs/nftables/latest/nftables/helper/fn.apply_ruleset_raw.html).
-- Текущие control operations: `get_stats`, `reload_config`, `replace_peers`. Последнюю нельзя удалять до отдельного решения о сохранении пользовательского сценария.
-- Первичная инвентаризация: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2. Тесты пока встроены в исходные модули; при переносе требуется сохранить приватный доступ и все assertions.
+- Исходный control protocol имел `get_stats`, `reload_config`, `replace_peers`. В текущей ветке transport API ограничен тремя согласованными операциями; peer-only replacement сохранён как `ReloadConfigMode::ReplacePeers` внутри `reload_config`.
+- Первичная инвентаризация: baseline inventory до изменений: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2; позднее добавлены importer и Unix transport regression tests. Тесты пока встроены в исходные модули; при переносе требуется сохранить приватный доступ и все assertions.
 
 
 ## Этап 1. Умеренная декомпозиция Configuration и Import
