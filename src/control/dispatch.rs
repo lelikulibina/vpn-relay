@@ -20,6 +20,10 @@ pub(crate) fn invalid_request(message: impl Into<String>) -> ControlResponse {
     ControlResponse::failure(ControlError::new(ControlErrorKind::InvalidRequest, message))
 }
 
+pub(crate) fn transport_unavailable(message: impl Into<String>) -> ControlResponse {
+    ControlResponse::failure(ControlError::new(ControlErrorKind::Unavailable, message))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,6 +161,20 @@ mod tests {
             },
         );
         assert_eq!(response.error_kind, Some(ControlErrorKind::Configuration));
+    }
+
+    #[test]
+    fn transport_failures_use_unavailable_category() {
+        let response = transport_unavailable("failed to read control request: timed out");
+        assert!(!response.ok);
+        assert_eq!(response.error_kind, Some(ControlErrorKind::Unavailable));
+        assert_eq!(
+            response.error.as_deref(),
+            Some("failed to read control request: timed out")
+        );
+
+        let encoded = serde_json::to_value(response).unwrap();
+        assert_eq!(encoded["error_kind"], "unavailable");
     }
 
     #[test]
