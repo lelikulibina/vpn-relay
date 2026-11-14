@@ -56,10 +56,12 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/main.rs` — тонкий platform entry point; Linux вызывает `vpn_relay::cli::run()`, не-Linux сообщает о неподдерживаемой платформе.
 - `src/cli.rs` — ручной разбор аргументов, foreground/background, настройка файлового логирования, табличная статистика и CLI dispatch. Операции управления работающим daemon вызывают Unix client через Runtime.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
-- `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
+- `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор key/CIDR и конфигурационные unit tests.
+- `src/config/endpoint.rs` — разбор `host:port` и проверка DNS-имён; публичные `PeerEndpoint` и `EndpointHost` реэкспортируются из `config`.
 - `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write; import tests.
 - `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
-- `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, генерация nftables script и команд iproute2, unit tests.
+- `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, команды iproute2 и routing unit tests.
+- `src/routing/nft.rs` — чистая генерация fail-closed nftables policy из `RoutingPlan`; метод `RoutingPlan::nft_script` сохранён как совместимый facade.
 - `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
 - `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
 - `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
