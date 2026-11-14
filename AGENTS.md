@@ -60,7 +60,8 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/config/validation.rs` — fail-closed validation модели, key/CIDR/interface constraints.
 - `src/config/tests.rs` — конфигурационные unit tests.
 - `src/config/endpoint.rs` — разбор `host:port` и проверка DNS-имён; публичные `PeerEndpoint` и `EndpointHost` реэкспортируются из `config`.
-- `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write; import tests.
+- `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write.
+- `src/import/tests.rs` — regression tests importer и atomic file workflow.
 - `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
 - `src/routing.rs` — backend-independent routing plan, egress resources и команды iproute2.
 - `src/routing/conntrack.rs` — allocation и validation durable conntrack decision IDs.
@@ -68,10 +69,12 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/routing/tests.rs` — routing plan и conntrack regression tests.
 - `src/routing/nft.rs` — чистая генерация fail-closed nftables policy из `RoutingPlan`; метод `RoutingPlan::nft_script` сохранён как совместимый facade.
 - `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
+- `src/linux/tests.rs` — Linux adapter и interface identity regression tests.
 - `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
 - `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
 - `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; делегирует запросы в `ControlApi`.
+- `src/control/unix/tests.rs` — wire framing, timeout и transport regression tests.
 - `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью.
 - `src/runtime.rs` — orchestration и lifecycle: startup/shutdown, reload/peer replacement transactions, snapshots/stats и signal handling.
 - `src/runtime/tests.rs` — runtime, state, socket, forwarding и peer transaction regression tests.
@@ -82,6 +85,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/runtime/peers.rs` — общие prepare/commit rollback helpers для peer replacement; endpoint preparation остаётся в backend/runtime orchestration.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
+- `src/backend/boringtun/tests.rs` — backend contract, peer conversion и snapshot tests.
 
 ### Документация, конфигурация, CI
 

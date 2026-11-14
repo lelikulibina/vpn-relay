@@ -54,7 +54,8 @@
 - Branch-head CI run `43584126385` completed successfully for endpoint and nft renderer extraction: format, check, clippy, 183 unit tests, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG and multi-uplink all passed.
 - Config validation is isolated in `config/validation.rs`; model/parser and reload compatibility remain behind the existing `config.rs` API.
 - Conntrack ID allocation/history validation is isolated in `routing/conntrack.rs`; `RoutingPlan` retains its methods as a narrow facade.
-- Config, routing and runtime tests are moved into dedicated child test modules with assertions retained; this batch awaits CI.
+- Config, routing and runtime tests are moved into dedicated child test modules with assertions retained.
+- Import, Linux adapter, BoringTun backend and Unix transport tests are now moved into matching child test modules; assertions are retained. The combined test-module batch awaits CI.
 
 ### Runtime extraction progress
 
@@ -211,3 +212,4 @@
 | 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |
 | 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
 | 2026-11-14 | Routing/config/runtime extraction | Выделены config validation и conntrack ID allocation; config/routing/runtime tests перемещены в отдельные child modules | CI pending |
+| 2026-11-14 | Test module extraction | Import, Linux adapter, BoringTun backend и Unix transport tests вынесены в dedicated child modules без удаления assertions | CI pending |
