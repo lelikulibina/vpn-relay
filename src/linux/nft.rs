@@ -1,5 +1,6 @@
 //! nftables table ownership and transactional policy application.
-use super::{run, LinuxError};
+use super::exec::run;
+use super::LinuxError;
 use crate::routing::RoutingPlan;
 use serde_json::Value;
 use std::io::Write;
