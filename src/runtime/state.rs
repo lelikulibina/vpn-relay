@@ -30,7 +30,7 @@ fn validate_private_state_file(path: &Path) -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn load_conntrack_mark_history(
+pub(super) fn load_conntrack_mark_history(
     path: &Path,
 ) -> Result<Vec<crate::routing::RoutingDecision>, RuntimeError> {
     // Open the inode we validate and read. A separate symlink_metadata()+read()
@@ -87,7 +87,7 @@ fn load_conntrack_mark_history(
     Ok(state.decisions)
 }
 
-fn persist_conntrack_mark_history(
+pub(super) fn persist_conntrack_mark_history(
     path: &Path,
     decisions: &[crate::routing::RoutingDecision],
 ) -> Result<(), RuntimeError> {
