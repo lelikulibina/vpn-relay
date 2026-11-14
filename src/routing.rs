@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 
 mod conntrack;
 mod nft;
+mod nft_json;
 
 use conntrack::FIRST_CONNTRACK_MARK;
 
@@ -256,6 +257,16 @@ impl RoutingPlan {
     /// are dropped.
     pub fn nft_script(&self) -> String {
         nft::render(self)
+    }
+
+    /// Build an nftables JSON API batch using the crate's typed schema objects.
+    pub(crate) fn nftables_json(&self, replace_owned: bool) -> Result<String, String> {
+        nft_json::render(self, replace_owned)
+    }
+
+    /// Build a typed JSON delete-table batch after ownership has been verified.
+    pub(crate) fn nft_delete_json(&self) -> Result<String, String> {
+        nft_json::delete_table(self)
     }
 
     /// Commands needed to populate egress tables and select them by packet

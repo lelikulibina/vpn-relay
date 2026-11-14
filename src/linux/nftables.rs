@@ -1,6 +1,6 @@
 //! nft command adapter and ownership-safe table lifecycle.
 
-use super::{run, LinuxError};
+use super::LinuxError;
 use crate::routing::RoutingPlan;
 use serde_json::Value;
 use std::io::Write;
@@ -115,34 +115,32 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
 
 /// Replace only a table whose table-level metadata proves ownership.
 pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
-    apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_script)
+    apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_json)
 }
 
 pub(super) fn apply_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
-    run_script: &mut R,
+    run_json: &mut R,
 ) -> Result<(), LinuxError>
 where
     I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
     R: FnMut(&str) -> Result<(), LinuxError>,
 {
-    let mut script = String::new();
-    if inspect_table(plan)? {
-        script.push_str(&format!(
-            "delete table {} {}\n",
-            plan.nft_family, plan.nft_table
-        ));
-    }
-    script.push_str(&plan.nft_script());
-    run_script(&script)
+    let replace_owned = inspect_table(plan)?;
+    let payload = plan.nftables_json(replace_owned).map_err(|error| LinuxError::Command {
+        program: "nftables JSON builder".into(),
+        status: "invalid generated ruleset".into(),
+        stderr: error,
+    })?;
+    run_json(&payload)
 }
 
-/// Submit one complete nftables batch. nft applies a batch transactionally:
+/// Submit one complete JSON ruleset batch. nft applies it transactionally:
 /// a rejected batch leaves the previous table intact.
-fn run_nft_script(script: &str) -> Result<(), LinuxError> {
+fn run_nft_json(payload: &str) -> Result<(), LinuxError> {
     let mut child = Command::new("nft")
-        .args(["-f", "-"])
+        .args(["-j", "-f", "-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -155,11 +153,9 @@ fn run_nft_script(script: &str) -> Result<(), LinuxError> {
         .stdin
         .take()
         .expect("piped stdin")
-        .write_all(script.as_bytes());
+        .write_all(payload.as_bytes());
     if let Err(source) = write_result {
-        // Closing stdin lets nft observe EOF. Always reap the child even when
-        // the pipe breaks, otherwise a failed policy update can leave an
-        // unreaped subprocess behind.
+        // Always reap the child even when the pipe breaks.
         let _ = child.wait_with_output();
         return Err(LinuxError::Spawn {
             program: "nft stdin".into(),
@@ -176,35 +172,34 @@ fn run_nft_script(script: &str) -> Result<(), LinuxError> {
         return Ok(());
     }
     Err(LinuxError::Command {
-        program: "nft -f -".into(),
+        program: "nft -j -f -".into(),
         status: output.status.to_string(),
         stderr: String::from_utf8_lossy(&output.stderr).trim().into(),
     })
 }
 
 pub fn remove_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
-    remove_nft_with(plan, &mut inspect_nft_table, &mut run)
+    remove_nft_with(plan, &mut inspect_nft_table, &mut run_nft_json)
 }
 
 pub(super) fn remove_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
-    run_command: &mut R,
+    run_json: &mut R,
 ) -> Result<(), LinuxError>
 where
     I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
-    R: FnMut(&str, &[String]) -> Result<(), LinuxError>,
+    R: FnMut(&str) -> Result<(), LinuxError>,
 {
     if !inspect_table(plan)? {
         return Ok(());
     }
-    run_command(
-        "nft",
-        &[
-            "delete".into(),
-            "table".into(),
-            plan.nft_family.clone(),
-            plan.nft_table.clone(),
-        ],
-    )
+    let payload = plan.nft_delete_json().map_err(|error| LinuxError::Command {
+        program: "nftables JSON builder".into(),
+        status: "invalid delete batch".into(),
+        stderr: error,
+    })?;
+    run_json(&payload)
+}
+
 }

@@ -645,7 +645,7 @@ fn nft_apply_does_not_mutate_when_inspection_fails() {
                 details: "unowned table".into(),
             })
         },
-        &mut |_script| {
+        &mut |_payload| {
             apply_calls += 1;
             Ok(())
         },
@@ -656,36 +656,42 @@ fn nft_apply_does_not_mutate_when_inspection_fails() {
 }
 
 #[test]
-fn nft_apply_creates_missing_table_without_delete_command() {
+fn nft_apply_creates_missing_table_with_typed_json_batch() {
     let plan = cleanup_test_plan();
     let mut submitted = None;
-    apply_nft_with(&plan, &mut |_plan| Ok(false), &mut |script| {
-        submitted = Some(script.to_owned());
+    apply_nft_with(&plan, &mut |_plan| Ok(false), &mut |payload| {
+        submitted = Some(payload.to_owned());
         Ok(())
     })
     .unwrap();
 
-    let script = submitted.expect("nft batch must be submitted");
-    assert!(!script.starts_with("delete table"));
-    assert!(script.contains("table inet vpn_relay"));
+    let document: serde_json::Value = serde_json::from_str(&submitted.unwrap()).unwrap();
+    let objects = document["nftables"].as_array().unwrap();
+    assert!(objects[0].get("delete").is_none());
+    assert_eq!(objects[0]["add"]["table"]["family"], "inet");
+    assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
+    assert_eq!(objects[0]["add"]["table"]["comment"], "managed by vpn-relay");
+    assert_eq!(objects[1]["add"]["set"]["name"], "managed_interfaces");
 }
 
 #[test]
-fn nft_apply_preserves_owned_table_on_transaction_failure() {
+fn nft_apply_replaces_owned_table_in_one_atomic_json_batch() {
     let plan = cleanup_test_plan();
     let mut submitted = None;
-    let result = apply_nft_with(&plan, &mut |_plan| Ok(true), &mut |script| {
-        submitted = Some(script.to_owned());
+    let result = apply_nft_with(&plan, &mut |_plan| Ok(true), &mut |payload| {
+        submitted = Some(payload.to_owned());
         Err(LinuxError::Command {
-            program: "nft -f -".into(),
+            program: "nft -j -f -".into(),
             status: "exit status 1".into(),
             stderr: "injected transaction failure".into(),
         })
     });
 
-    assert!(submitted
-        .as_deref()
-        .is_some_and(|script| script.starts_with("delete table inet vpn_relay\n")));
+    let document: serde_json::Value = serde_json::from_str(&submitted.unwrap()).unwrap();
+    let objects = document["nftables"].as_array().unwrap();
+    assert_eq!(objects[0]["delete"]["table"]["family"], "inet");
+    assert_eq!(objects[0]["delete"]["table"]["name"], "vpn_relay");
+    assert_eq!(objects[1]["add"]["table"]["comment"], "managed by vpn-relay");
     assert!(matches!(result, Err(LinuxError::Command { ref stderr, .. })
         if stderr.contains("injected transaction failure")));
 }
@@ -703,7 +709,7 @@ fn nft_remove_does_not_delete_when_inspection_fails() {
                 stderr: "permission denied".into(),
             })
         },
-        &mut |_program, _args| {
+        &mut |_payload| {
             delete_calls += 1;
             Ok(())
         },
@@ -713,29 +719,26 @@ fn nft_remove_does_not_delete_when_inspection_fails() {
         result,
         Err(LinuxError::Command { ref stderr, .. }) if stderr == "permission denied"
     ));
-    assert_eq!(
-        delete_calls, 0,
-        "delete must not run after failed inspection"
-    );
+    assert_eq!(delete_calls, 0, "delete must not run after failed inspection");
 }
 
 #[test]
-fn nft_remove_skips_missing_table_and_propagates_delete_failure() {
+fn nft_remove_skips_missing_table_and_propagates_json_delete_failure() {
     let plan = cleanup_test_plan();
     let mut delete_calls = 0;
-    remove_nft_with(&plan, &mut |_plan| Ok(false), &mut |_program, _args| {
+    remove_nft_with(&plan, &mut |_plan| Ok(false), &mut |_payload| {
         delete_calls += 1;
         Ok(())
     })
     .unwrap();
     assert_eq!(delete_calls, 0);
 
-    let result = remove_nft_with(&plan, &mut |_plan| Ok(true), &mut |program, args| {
+    let result = remove_nft_with(&plan, &mut |_plan| Ok(true), &mut |payload| {
         delete_calls += 1;
-        assert_eq!(program, "nft");
-        assert_eq!(args, ["delete", "table", "inet", "vpn_relay"]);
+        let document: serde_json::Value = serde_json::from_str(payload).unwrap();
+        assert_eq!(document["nftables"][0]["delete"]["table"]["name"], "vpn_relay");
         Err(LinuxError::Command {
-            program: "nft delete table".into(),
+            program: "nft -j -f -".into(),
             status: "exit status 1".into(),
             stderr: "injected delete failure".into(),
         })

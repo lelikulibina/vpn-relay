@@ -584,3 +584,42 @@ fn source_only_and_destination_only_rules_generate_ipv4_matches() {
     assert!(script.contains("ct state new ip daddr 203.0.113.0/24 meta mark set"));
     assert!(script.contains("ip saddr 10.10.0.0/24 meta mark set"));
 }
+
+#[test]
+fn nft_json_preserves_interface_identity_and_ownership_metadata() {
+    let mut plan = RoutingPlan::from_config(&sample_config());
+    plan.bind_interface_indices(BTreeMap::from([
+        ("wg-server".to_owned(), 11),
+        ("awg-primary".to_owned(), 12),
+        ("awg-secondary".to_owned(), 13),
+    ]))
+    .unwrap();
+
+    let document: serde_json::Value = serde_json::from_str(&plan.nftables_json(false).unwrap()).unwrap();
+    let objects = document["nftables"].as_array().unwrap();
+    let table = objects.iter().find_map(|object| object.get("add").and_then(|add| add.get("table"))).unwrap();
+    assert_eq!(table["comment"], "managed by vpn-relay");
+
+    let sets = objects.iter().filter_map(|object| object.get("add").and_then(|add| add.get("set"))).collect::<Vec<_>>();
+    let managed = sets.iter().find(|set| set["name"] == "managed_interfaces").unwrap();
+    assert_eq!(managed["type"], "iface_index");
+    assert_eq!(managed["elem"], serde_json::json!([11, 12, 13]));
+    let ipv6 = sets.iter().find(|set| set["name"] == "ipv6_drop_interfaces").unwrap();
+    assert_eq!(ipv6["type"], "iface_index");
+    assert_eq!(ipv6["elem"], serde_json::json!([11, 12, 13]));
+
+    let replace: serde_json::Value = serde_json::from_str(&plan.nftables_json(true).unwrap()).unwrap();
+    assert!(replace["nftables"][0].get("delete").is_some());
+    assert!(replace["nftables"][1].get("add").and_then(|add| add.get("table")).is_some());
+}
+
+#[test]
+fn nft_json_uses_ifname_sets_before_verified_indices_are_bound() {
+    let plan = RoutingPlan::from_config(&sample_config());
+    let document: serde_json::Value = serde_json::from_str(&plan.nftables_json(false).unwrap()).unwrap();
+    let managed = document["nftables"].as_array().unwrap().iter()
+        .find_map(|object| object.get("add").and_then(|add| add.get("set")))
+        .unwrap();
+    assert_eq!(managed["type"], "ifname");
+    assert_eq!(managed["elem"], serde_json::json!(["awg-primary", "awg-secondary", "wg-server"]));
+}
