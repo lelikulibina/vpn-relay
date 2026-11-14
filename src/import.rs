@@ -61,7 +61,9 @@ pub fn import_into_config(
         return Err(ImportError::Exists(name.to_owned()));
     }
     let mut candidate = current.clone();
-    candidate.interfaces.insert(name.to_owned(), interface.clone());
+    candidate
+        .interfaces
+        .insert(name.to_owned(), interface.clone());
     candidate
         .validate()
         .map_err(|error| ImportError::Config(error.to_string()))?;
@@ -704,8 +706,7 @@ PersistentKeepalive = 25
 
         let original_text = fs::read_to_string(&config_path).unwrap();
         let current = Config::load(&config_path).unwrap();
-        let (candidate, report) =
-            import_into_config(&current, CLIENT, "wg1", false).unwrap();
+        let (candidate, report) = import_into_config(&current, CLIENT, "wg1", false).unwrap();
 
         assert_eq!(current.interfaces.len(), 1);
         assert_eq!(candidate.interfaces.len(), 2);
