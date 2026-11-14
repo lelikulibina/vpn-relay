@@ -481,7 +481,6 @@ fn append_nat_rule(
 
 fn serialize_batch(
     batch: Batch<'static>,
-    plan: &RoutingPlan,
     patch_interface_index: bool,
 ) -> Result<String, String> {
     let mut document = serde_json::to_value(batch.to_nftables())
