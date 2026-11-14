@@ -111,15 +111,10 @@ pub(crate) struct ControlResponse {
     pub(crate) import_report: Option<ImportReport>,
 }
 
-
-
 /// Serve one already-accepted Unix socket connection through the application
 /// API. Framing, limits, JSON decoding and response encoding live in this
 /// transport adapter; application operations remain on \`ControlApi\`.
-pub(crate) fn handle_unix_connection(
-    api: &mut impl ControlApi,
-    mut stream: UnixStream,
-) {
+pub(crate) fn handle_unix_connection(api: &mut impl ControlApi, mut stream: UnixStream) {
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let mut payload = Vec::new();
     let read_result = (&mut stream)
