@@ -20,8 +20,8 @@ mod reload;
 mod schema;
 mod validate;
 use parse::{canonical_prefix, parse_prefix, valid_nft_table_name, validate_interface_name};
-use schema::DEFAULT_SOCKET_FWMARK_BASE;
 pub use parse::{decode_key, EndpointHost, PeerEndpoint};
+use schema::DEFAULT_SOCKET_FWMARK_BASE;
 pub use schema::{
     Config, DaemonConfig, FirewallConfig, FirewallProtocol, FirewallRule, FirewallRuleSet,
     InterfaceConfig, NatAction, NatMode, PeerConfig, PersistentKeepaliveConfig, RoutingConfig,
