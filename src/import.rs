@@ -692,6 +692,34 @@ PersistentKeepalive = 25
     }
 
     #[test]
+    fn in_memory_import_builds_a_candidate_without_writing_the_source_config() {
+        let directory =
+            std::env::temp_dir().join(format!("vpn-relay-import-api-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&directory);
+        fs::create_dir_all(&directory).unwrap();
+        let source_path = directory.join("wg.conf");
+        let config_path = directory.join("config.toml");
+        fs::write(&source_path, CLIENT).unwrap();
+        import_file(&source_path, &config_path, "wg0", false).unwrap();
+
+        let original_text = fs::read_to_string(&config_path).unwrap();
+        let current = Config::load(&config_path).unwrap();
+        let (candidate, report) =
+            import_into_config(&current, CLIENT, "wg1", false).unwrap();
+
+        assert_eq!(current.interfaces.len(), 1);
+        assert_eq!(candidate.interfaces.len(), 2);
+        assert!(!report.replaced);
+        assert_eq!(fs::read_to_string(&config_path).unwrap(), original_text);
+        assert!(matches!(
+            import_into_config(&current, CLIENT, "wg0", false),
+            Err(ImportError::Exists(_))
+        ));
+
+        fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
     fn imports_awg_parameter_profiles_as_awg_tunnel() {
         let base = CLIENT.replace("DNS = 1.1.1.1\n", "");
         let profiles = [
