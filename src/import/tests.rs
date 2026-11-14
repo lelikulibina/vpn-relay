@@ -1,6 +1,5 @@
 use super::*;
 
-
 const CLIENT: &str = r#"[Interface]
 PrivateKey = AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
 Address = 10.0.0.2/32

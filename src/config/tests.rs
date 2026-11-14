@@ -1,5 +1,5 @@
-use super::*;
 use super::validation::validate_interface_name;
+use super::*;
 
 const KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 

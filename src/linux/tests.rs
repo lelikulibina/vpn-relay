@@ -1,6 +1,5 @@
 use super::*;
 
-
 fn cleanup_test_plan() -> RoutingPlan {
     RoutingPlan {
         nft_family: "inet".into(),
@@ -81,9 +80,7 @@ fn socket_fwmark_stale_rule_cleanup_failure_aborts_install_and_rolls_back() {
             calls.push(args.to_vec());
             let is_socket_rule = args.get(1).is_some_and(|part| part == "rule")
                 && args.get(4).is_some_and(|part| part == "9000");
-            if is_socket_rule
-                && args.get(2).is_some_and(|part| part == "del")
-                && !failure_injected
+            if is_socket_rule && args.get(2).is_some_and(|part| part == "del") && !failure_injected
             {
                 stale_cleanup_attempts += 1;
                 if stale_cleanup_attempts == failure_position {
@@ -534,8 +531,7 @@ fn nested_policy_rollback_does_not_repeat_egress_cleanup() {
                 stderr: "injected egress install failure".into(),
             });
         }
-        if args.get(2).is_some_and(|v| v == "del") && args.get(1).is_some_and(|v| v == "route")
-        {
+        if args.get(2).is_some_and(|v| v == "del") && args.get(1).is_some_and(|v| v == "route") {
             return Err(LinuxError::Command {
                 program: format!("ip {}", args.join(" ")),
                 status: "exit status 2".into(),
@@ -552,9 +548,7 @@ fn nested_policy_rollback_does_not_repeat_egress_cleanup() {
     );
     let egress_cleanup_calls = calls[failure_index.expect("install failure injected")..]
         .iter()
-        .filter(|args| {
-            args.get(2).is_some_and(|v| v == "del") && args.iter().any(|v| v == "10001")
-        })
+        .filter(|args| args.get(2).is_some_and(|v| v == "del") && args.iter().any(|v| v == "10001"))
         .count();
     assert_eq!(
         egress_cleanup_calls, 2,

@@ -328,4 +328,3 @@ fn valid_nft_table_name(name: &str) -> bool {
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
-
