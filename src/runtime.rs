@@ -10,6 +10,7 @@ use crate::control::{
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
+mod control_api;
 mod control_socket;
 mod forwarding;
 mod peers;
@@ -75,66 +76,6 @@ pub struct Runtime {
     /// Preserve the name-mismatch guards if the original TUN descriptor is lost.
     retain_firewall: bool,
     _instance_lock: InstanceLock,
-}
-
-struct InstanceLock {
-    _file: File,
-}
-
-impl InstanceLock {
-    /// Key the lock by the current network namespace inode. This allows
-    /// independent daemons in separate namespaces while preventing duplicate
-    /// instances inside the same namespace.
-    fn path_for_netns_inode(inode: u64) -> PathBuf {
-        PathBuf::from(format!("/run/vpn-relay-netns-{inode}.lock"))
-    }
-
-    fn current_netns_path() -> Result<PathBuf, RuntimeError> {
-        let metadata = std::fs::metadata("/proc/self/ns/net")
-            .map_err(|error| RuntimeError::InstanceLock(error.to_string()))?;
-        Ok(Self::path_for_netns_inode(metadata.ino()))
-    }
-
-    fn current_control_path() -> Result<PathBuf, RuntimeError> {
-        let lock_path = Self::current_netns_path()?;
-        Ok(lock_path.with_extension("sock"))
-    }
-
-    fn current_conntrack_mark_state_path() -> Result<PathBuf, RuntimeError> {
-        let lock_path = Self::current_netns_path()?;
-        Ok(lock_path.with_extension("marks"))
-    }
-
-    fn current_forwarding_state_path() -> Result<PathBuf, RuntimeError> {
-        let lock_path = Self::current_netns_path()?;
-        Ok(lock_path.with_extension("forwarding"))
-    }
-
-    fn current_netns_inode() -> Result<u64, RuntimeError> {
-        std::fs::metadata("/proc/self/ns/net")
-            .map(|metadata| metadata.ino())
-            .map_err(|error| RuntimeError::InstanceLock(error.to_string()))
-    }
-
-    fn acquire(path: &Path) -> Result<Self, RuntimeError> {
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .mode(0o600)
-            .open(path)
-            .map_err(|error| RuntimeError::InstanceLock(error.to_string()))?;
-        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) };
-        if result != 0 {
-            let error = std::io::Error::last_os_error();
-            if error.kind() == std::io::ErrorKind::WouldBlock {
-                return Err(RuntimeError::AlreadyRunning(path.display().to_string()));
-            }
-            return Err(RuntimeError::InstanceLock(error.to_string()));
-        }
-        Ok(Self { _file: file })
-    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
@@ -737,53 +678,6 @@ impl Runtime {
 
         // Runtime::drop performs the single ordered shutdown sequence.
         Ok(())
-    }
-}
-
-impl ControlApi for Runtime {
-    fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError> {
-        let parsed = Config::parse_toml(&request.toml)
-            .map_err(|error| ControlError::new(error.to_string()))?;
-        let candidate = match request.mode {
-            ReloadConfigMode::Full => parsed,
-            ReloadConfigMode::ReplacePeers { interface } => {
-                let imported = parsed.interfaces.get(&interface).ok_or_else(|| {
-                    ControlError::new(format!(
-                        "interface '{interface}' is missing from supplied configuration"
-                    ))
-                })?;
-                let mut candidate = self.config.clone();
-                let target = candidate
-                    .interfaces
-                    .get_mut(&interface)
-                    .ok_or_else(|| ControlError::new(format!("unknown interface '{interface}'")))?;
-                target.peers = imported.peers.clone();
-                candidate
-            }
-        };
-        Runtime::reload_config(self, candidate)
-            .map_err(|error| ControlError::new(error.to_string()))
-    }
-
-    fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError> {
-        self.collect_stats()
-            .map_err(|error| ControlError::new(error.to_string()))
-    }
-
-    fn import_config(
-        &mut self,
-        request: ImportConfigRequest,
-    ) -> Result<crate::import::ImportReport, ControlError> {
-        let (candidate, report) = crate::import::import_into_config(
-            &self.config,
-            &request.source,
-            &request.interface,
-            request.replace,
-        )
-        .map_err(|error| ControlError::new(error.to_string()))?;
-        Runtime::reload_config(self, candidate)
-            .map_err(|error| ControlError::new(error.to_string()))?;
-        Ok(report)
     }
 }
 
