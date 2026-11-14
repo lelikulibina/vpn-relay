@@ -631,7 +631,7 @@ mod tests {
         for (label, payload) in [
             ("empty", &b""[..]),
             ("malformed", &b"not json"[..]),
-            ("truncated", &br#"{"ok":true,"error":null"# [..]),
+            ("truncated", &br#"{"ok":true,"error":null"#[..]),
         ] {
             let path = socket_path(label);
             let listener = UnixListener::bind(&path).unwrap();
