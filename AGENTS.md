@@ -75,7 +75,6 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
 - `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; делегирует запросы в `ControlApi`.
 - `src/control/unix/tests.rs` — wire framing, timeout и transport regression tests.
-- `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью.
 - `src/runtime.rs` — orchestration и lifecycle: startup/shutdown, reload/peer replacement transactions, snapshots/stats и signal handling.
 - `src/runtime/tests.rs` — runtime, state, socket, forwarding и peer transaction regression tests.
 - `src/runtime/control_api.rs` — реализация transport-independent `ControlApi` для Runtime; переводит DTO в application operations, без Unix wire protocol.

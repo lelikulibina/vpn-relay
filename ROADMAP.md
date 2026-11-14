@@ -28,7 +28,7 @@
 - [x] Зафиксировать исходный commit и состояние рабочей ветки: `daemon-improvements` на `cff0e57747fc0d4238ecadb3519fe9f55ad41725`; рабочая ветка создана отдельно.
 - [x] Изучить `AGENTS.md`, README и NFTables documentation; первично изучены основные исходники. Детальный аудит каждого затрагиваемого участка продолжается перед соответствующим этапом.
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
-- [x] Инвентаризировать unit-, integration- и shell-тесты: 181 unit tests на предыдущем полностью зелёном commit; в текущем шаге добавлены два Unix transport regression tests, точное новое число будет зафиксировано после CI. (тесты пока в основном inline) и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
+- [x] Инвентаризировать unit-, integration- и shell-тесты: 183 unit tests на последнем полностью зелёном branch-head CI; тесты размещены в отдельных child modules без удаления assertions и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
 - [x] Проверить CLI и control socket protocol: `ControlApi` имеет три операции (`get_stats`, `reload_config`, `import_config`); peer-only replacement — режим `reload_config`. CLI находится в `src/cli.rs`.
 - [ ] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [ ] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
@@ -39,7 +39,7 @@
 
 - Linux adapter декомпозирован: `linux.rs` — общие команды, interface identity и rtnetlink; `linux/nftables.rs` — ownership-safe nft lifecycle; `linux/policy_routing.rs` — iproute2 policy routing. Семантика команд не менялась.
 
-- Import parser отделён в `src/import/parser.rs`; `src/import.rs` оставлен orchestration/validation/atomic-write модулем. Конфигурационная модель пока не дробилась, поскольку её зависимости и тесты требуют отдельного аудита.
+- Import parser отделён в `src/import/parser.rs`; `src/import.rs` оставлен orchestration/validation/atomic-write модулем. Конфигурационная валидация вынесена в `src/config/validation.rs`; TOML schema, parser и reload compatibility остались за прежним фасадом `config.rs`.
 
 - `src/main.rs` преобразован в тонкий entrypoint; CLI живёт в `src/cli.rs`.
 - Control API реализован с тремя операциями; Unix wire adapter вынесен в `src/control/unix.rs`. `replace_peers` не является четвёртой API-операцией: он выражен режимом `reload_config`.
@@ -54,8 +54,8 @@
 - Branch-head CI run `43584126385` completed successfully for endpoint and nft renderer extraction: format, check, clippy, 183 unit tests, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG and multi-uplink all passed.
 - Config validation is isolated in `config/validation.rs`; model/parser and reload compatibility remain behind the existing `config.rs` API.
 - Conntrack ID allocation/history validation is isolated in `routing/conntrack.rs`; `RoutingPlan` retains its methods as a narrow facade.
-- Config, routing and runtime tests are moved into dedicated child test modules with assertions retained.
-- Import, Linux adapter, BoringTun backend and Unix transport tests are now moved into matching child test modules; assertions are retained. The combined test-module batch awaits CI.
+- Config, routing, runtime, import, Linux adapter, BoringTun backend and Unix transport tests are moved into dedicated child test modules; all assertions are retained.
+- Full verification of this extraction batch passed in branch-head CI run `43585876121`: 183 unit tests, format, check, clippy, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG and multi-uplink.
 
 ### Runtime extraction progress
 
@@ -64,16 +64,17 @@
 - `runtime/peers.rs`: shared peer commit/rollback transaction helpers.
 - `runtime/control_socket.rs`: Unix socket ownership-safe bind/drop and inode checks.
 - `runtime/control_api.rs`: Runtime implementation of transport-independent Control API.
-- Runtime orchestration remains in one parent module; tests remain in the parent test module for now to preserve access and coverage while boundaries settle.
+- Runtime orchestration remains in one parent module; regression tests live in `runtime/tests.rs` as a child module, preserving private access and all coverage.
 - The complete runtime extraction batch is verified by branch-head CI run `43584126385`: 183 unit tests, both kernel compatibility jobs, Podman, routing/firewall/NAT, WG, AWG and multi-uplink all passed.
 
 ### Первичные результаты аудита
 
 - В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
 - Ownership текущей nft table опирается на table-level comment `managed by vpn-relay`; это часть защитной модели и должно сохраниться.
-- Изучена документация `nftables` 0.6.3: crate моделирует JSON API и применяет ruleset через helper, который вызывает исполняемый `nft`. В типе `schema::Table` отсутствует поле table comment, поэтому перед миграцией нужно отдельно решить, как сохранить ownership marker без дублирования schema. См. [crate docs](https://docs.rs/nftables/latest/nftables/) и [apply_ruleset_raw](https://docs.rs/nftables/latest/nftables/helper/fn.apply_ruleset_raw.html).
+- Изучена документация `nftables` 0.6.3: crate моделирует JSON API, а `apply_ruleset_raw` вызывает исполняемый `nft` с `-j -f -`; это не устраняет системную зависимость от бинарника.
+- `schema::Table` не содержит table-level `comment`, используемый ownership marker `managed by vpn-relay`; `schema::SetType` также не содержит `iface_index`, который нужен для descriptor-verified interface sets. Для сохранения семантики потребуется точечно расширить сериализованный JSON этих двух полей, не создавать параллельные schema-типы и покрыть это тестами. См. [crate docs](https://docs.rs/nftables/latest/nftables/) и [apply_ruleset_raw](https://docs.rs/nftables/latest/nftables/helper/fn.apply_ruleset_raw.html).
 - Исходный control protocol имел `get_stats`, `reload_config`, `replace_peers`. В текущей ветке transport API ограничен тремя согласованными операциями; peer-only replacement сохранён как `ReloadConfigMode::ReplacePeers` внутри `reload_config`.
-- Первичная инвентаризация: baseline inventory до изменений: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2; позднее добавлены importer и Unix transport regression tests. Тесты пока встроены в исходные модули; при переносе требуется сохранить приватный доступ и все assertions.
+- Первичная инвентаризация baseline: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2. Ветка завершает extraction с 183 unit tests; config/routing/runtime/import/Linux/backend/Unix transport tests находятся в отдельных child modules.
 
 
 ## Этап 1. Умеренная декомпозиция Configuration и Import
@@ -160,11 +161,11 @@
 ## Этап 8. Тесты, документация и архитектурная проверка
 
 - [ ] Сохранить все существующие уникальные тестовые сценарии; ни один тест не удалять без доказательства дублирования/устаревания и фиксации причины.
-- [ ] Разместить тесты в отдельных логических test modules; не создавать пустые/избыточные каталоги.
-- [ ] Проверить config/import/routing/firewall/backend/control/runtime/Linux adapters.
-- [ ] Проверить shell integration tests и сценарии WG и AWG.
-- [ ] Обновить README, `docs/VPN_RELAY_NFTABLES.md`, примеры конфигурации при необходимости.
-- [ ] Обновить `AGENTS.md` по фактической итоговой архитектуре и командам.
+- [x] Разместить config/import/routing/Linux/backend/control/runtime tests в отдельных логических child modules; все 183 unit tests сохранены.
+- [x] Проверить config/import/routing/firewall/backend/control/runtime/Linux adapters через unit и branch-head CI.
+- [x] Проверить shell integration tests и сценарии WG, AWG и multi-uplink в CI run `43585876121`.
+- [x] Обновить README и `docs/VPN_RELAY_NFTABLES.md` под текущие архитектурные границы; примеры конфигурации не менялись.
+- [x] Обновить `AGENTS.md` по фактической архитектуре и тестовым модулям.
 - [ ] Проверить отсутствие дублирующих реализаций, временных compatibility paths и неиспользуемого кода.
 - [ ] Проверить Cargo dependency changes и отсутствие ненужных зависимостей.
 
@@ -211,6 +212,6 @@
 | 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки. Первый CI прошёл quality, kernel compatibility, Podman и netns routing/firewall/NAT; после CLI extraction следующий CI выявил только rustfmt-порядок imports/modules, исправленный в этом commit. | [run 43547350227](https://github.com/lelikulibina/vpn-relay/actions/runs/43547350227) |
 | 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |
 | 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
-| 2026-11-14 | Routing/config/runtime extraction | Выделены config validation и conntrack ID allocation; config/routing/runtime tests перемещены в отдельные child modules | CI pending |
-| 2026-11-14 | Test module extraction | Import, Linux adapter, BoringTun backend и Unix transport tests вынесены в dedicated child modules без удаления assertions | CI pending |
+| 2026-11-14 | Routing/config/runtime extraction | Выделены config validation и conntrack ID allocation; config/routing/runtime tests перемещены в отдельные child modules | [CI 43585876121](https://github.com/lelikulibina/vpn-relay/actions/runs/43585876121), success |
+| 2026-11-14 | Test module extraction | Import, Linux adapter, BoringTun backend и Unix transport tests вынесены в dedicated child modules без удаления assertions | [CI 43585876121](https://github.com/lelikulibina/vpn-relay/actions/runs/43585876121), success |
 
