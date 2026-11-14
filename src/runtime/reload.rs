@@ -2,7 +2,7 @@
 
 use super::*;
 
-fn commit_peer_replacements(
+pub(super) fn commit_peer_replacements(
     devices: &mut [Box<dyn TunnelHandle>],
     changed_interfaces: &[(usize, String)],
     candidate: &Config,
@@ -42,7 +42,7 @@ fn commit_peer_replacements(
     Ok(committed)
 }
 
-fn rollback_peer_replacements(
+pub(super) fn rollback_peer_replacements(
     devices: &mut [Box<dyn TunnelHandle>],
     committed: &[usize],
     previous_config: &Config,
