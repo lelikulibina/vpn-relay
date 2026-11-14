@@ -946,7 +946,7 @@ impl Runtime {
         loop {
             match self.control_socket.listener.accept() {
                 Ok((stream, _)) => {
-                    self.handle_control_connection(stream);
+                    crate::control::handle_unix_connection(self, stream);
                     // A request may itself trigger a fatal transition. Stop
                     // immediately rather than accepting another queued reload
                     // or peer replacement in the partially committed state.
@@ -960,95 +960,6 @@ impl Runtime {
                     break;
                 }
             }
-        }
-    }
-
-    fn handle_control_connection(&mut self, mut stream: UnixStream) {
-        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
-        let mut payload = Vec::new();
-        let read_result = (&mut stream)
-            .take(1024 * 1024 + 1)
-            .read_to_end(&mut payload);
-        let mut stats = None;
-        let response = match read_result {
-            Ok(_) if payload.len() > 1024 * 1024 => ControlResponse {
-                ok: false,
-                error: Some("request exceeds 1 MiB limit".to_owned()),
-                stats: None,
-                import_report: None,
-            },
-            Ok(_) => match serde_json::from_slice::<ControlRequest>(&payload) {
-                Ok(request) => {
-                    let mut import_report = None;
-                    let result = match request {
-                        ControlRequest::GetStats => match ControlApi::get_stats(self) {
-                            Ok(value) => {
-                                stats = Some(value);
-                                Ok(())
-                            }
-                            Err(error) => Err(error),
-                        },
-                        ControlRequest::ReloadConfig { toml } => ControlApi::reload_config(
-                            self,
-                            ReloadConfigRequest { toml },
-                        ),
-                        ControlRequest::ImportConfig {
-                            source,
-                            interface,
-                            replace,
-                        } => match ControlApi::import_config(
-                            self,
-                            ImportConfigRequest {
-                                source,
-                                interface,
-                                replace,
-                            },
-                        ) {
-                            Ok(report) => {
-                                import_report = Some(report);
-                                Ok(())
-                            }
-                            Err(error) => Err(error),
-                        },
-                    };
-                    match result {
-                        Ok(()) => ControlResponse {
-                            ok: true,
-                            error: None,
-                            stats,
-                            import_report,
-                        },
-                        Err(error) => ControlResponse {
-                            ok: false,
-                            error: Some(error.to_string()),
-                            stats: None,
-                            import_report: None,
-                        },
-                    }
-                }
-                Err(error) => ControlResponse {
-                    ok: false,
-                    error: Some(format!("invalid control request: {error}")),
-                    stats: None,
-                    import_report: None,
-                },
-            },
-            Err(error) => ControlResponse {
-                ok: false,
-                error: Some(format!("failed to read control request: {error}")),
-                stats: None,
-                import_report: None,
-            },
-        };
-        let write_result = serde_json::to_vec(&response)
-            .map_err(|error| error.to_string())
-            .and_then(|payload| {
-                stream
-                    .write_all(&payload)
-                    .map_err(|error| error.to_string())
-            });
-        if let Err(error) = write_result {
-            tracing::warn!(%error, "failed to send control response");
         }
     }
 
@@ -1082,32 +993,7 @@ impl Runtime {
 
     fn send_control_request(request: ControlRequest) -> Result<ControlResponse, RuntimeError> {
         let path = InstanceLock::current_control_path()?;
-        let mut stream =
-            UnixStream::connect(&path).map_err(|error| RuntimeError::Control(error.to_string()))?;
-        stream
-            .set_read_timeout(Some(Duration::from_secs(300)))
-            .map_err(|error| RuntimeError::Control(error.to_string()))?;
-        serde_json::to_writer(&mut stream, &request)
-            .map_err(|error| RuntimeError::Control(error.to_string()))?;
-        stream
-            .shutdown(std::net::Shutdown::Write)
-            .map_err(|error| RuntimeError::Control(error.to_string()))?;
-        let mut response = Vec::new();
-        (&mut stream)
-            .take(4 * 1024 * 1024)
-            .read_to_end(&mut response)
-            .map_err(|error| RuntimeError::Control(error.to_string()))?;
-        let response: ControlResponse = serde_json::from_slice(&response)
-            .map_err(|error| RuntimeError::Control(error.to_string()))?;
-        if response.ok {
-            Ok(response)
-        } else {
-            Err(RuntimeError::Control(
-                response
-                    .error
-                    .unwrap_or_else(|| "daemon rejected request".to_owned()),
-            ))
-        }
+        crate::control::send_unix_request(&path, request).map_err(RuntimeError::Control)
     }
 
     /// Return consistent live counters without depending on a backend UAPI.
