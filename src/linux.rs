@@ -2,18 +2,18 @@
 mod exec;
 mod nft;
 mod policy;
+use exec::run;
 pub use exec::run_ip;
 pub use nft::{apply_nft, remove_nft};
 pub use policy::{
-    allocate_policy_routing_resources, apply_egress_policy_routing,
-    apply_policy_routing, remove_egress_policy_routing, remove_policy_routing,
+    allocate_policy_routing_resources, apply_egress_policy_routing, apply_policy_routing,
+    remove_egress_policy_routing, remove_policy_routing,
 };
-use exec::run;
 #[cfg(test)]
 use policy::{
-    apply_egress_policy_routing_with, apply_policy_routing_with,
-    remove_egress_policy_routing_with, remove_policy_routing_with,
-    route_has_owned_identity, rule_has_owned_identity, rule_matches_fwmark,
+    apply_egress_policy_routing_with, apply_policy_routing_with, remove_egress_policy_routing_with,
+    remove_policy_routing_with, route_has_owned_identity, rule_has_owned_identity,
+    rule_matches_fwmark,
 };
 
 // Reserved iproute2 protocol tag identifying resources owned by vpn-relay.

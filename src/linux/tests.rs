@@ -1,6 +1,6 @@
 use super::nft::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
-use crate::routing::RoutingPlan;
 use super::*;
+use crate::routing::RoutingPlan;
 
 fn cleanup_test_plan() -> RoutingPlan {
     RoutingPlan {
