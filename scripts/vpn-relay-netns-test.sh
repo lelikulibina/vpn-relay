@@ -1160,3 +1160,4 @@ grep -Fq "lost its original interface identity" "$TMP/tun-identity-loss.log" || 
 grep -Fq "retaining fail-closed nftables policy" "$TMP/tun-identity-loss-tracing.log" || fail "daemon did not retain firewall after TUN identity loss"
 
 echo "vpn-relay namespace integration test passed"
+
