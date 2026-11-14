@@ -47,7 +47,7 @@ flowchart TD
 
 vpn-relay управляет только трафиком, который входит или выходит через
 интерфейсы из `[interfaces]`. Таблица nftables имеет family `inet`,
-настраиваемое имя `[daemon].nft_table` и dedicated `vpn_relay_owner` chain rule comment
+настраиваемое имя `[daemon].nft_table` и dedicated non-hooked `vpn_relay_owner` chain rule comment with an inert counter and return
 `managed by vpn-relay`.
 
 INPUT, OUTPUT и FORWARD base chains используют `policy accept`: vpn-relay

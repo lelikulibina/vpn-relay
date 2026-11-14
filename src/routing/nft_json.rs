@@ -64,7 +64,7 @@ fn add_owner_marker(batch: &mut Batch<'static>, plan: &RoutingPlan) -> Result<()
                 "family": plan.nft_family,
                 "table": plan.nft_table,
                 "chain": "vpn_relay_owner",
-                "expr": [return_verdict()],
+                "expr": [counter(), return_verdict()],
                 "comment": OWNERSHIP_COMMENT,
             }
         }),
