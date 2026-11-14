@@ -3,7 +3,10 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
-use crate::control::{ControlRequest, ControlResponse};
+use crate::control::{
+    ControlApi, ControlError, ControlRequest, ControlResponse, ImportConfigRequest,
+    ReloadConfigRequest,
+};
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
@@ -972,34 +975,54 @@ impl Runtime {
                 ok: false,
                 error: Some("request exceeds 1 MiB limit".to_owned()),
                 stats: None,
+                import_report: None,
             },
             Ok(_) => match serde_json::from_slice::<ControlRequest>(&payload) {
                 Ok(request) => {
+                    let mut import_report = None;
                     let result = match request {
-                        ControlRequest::GetStats => match self.collect_stats() {
+                        ControlRequest::GetStats => match ControlApi::get_stats(self) {
                             Ok(value) => {
                                 stats = Some(value);
                                 Ok(())
                             }
                             Err(error) => Err(error),
                         },
-                        ControlRequest::ReplacePeers { interface, peers } => {
-                            self.replace_peers(&interface, peers)
-                        }
-                        ControlRequest::ReloadConfig { toml } => Config::parse_toml(&toml)
-                            .map_err(|error| RuntimeError::Configuration(error.to_string()))
-                            .and_then(|candidate| self.reload_config(candidate)),
+                        ControlRequest::ReloadConfig { toml } => ControlApi::reload_config(
+                            self,
+                            ReloadConfigRequest { toml },
+                        ),
+                        ControlRequest::ImportConfig {
+                            source,
+                            interface,
+                            replace,
+                        } => match ControlApi::import_config(
+                            self,
+                            ImportConfigRequest {
+                                source,
+                                interface,
+                                replace,
+                            },
+                        ) {
+                            Ok(report) => {
+                                import_report = Some(report);
+                                Ok(())
+                            }
+                            Err(error) => Err(error),
+                        },
                     };
                     match result {
                         Ok(()) => ControlResponse {
                             ok: true,
                             error: None,
                             stats,
+                            import_report,
                         },
                         Err(error) => ControlResponse {
                             ok: false,
                             error: Some(error.to_string()),
                             stats: None,
+                            import_report: None,
                         },
                     }
                 }
@@ -1007,12 +1030,14 @@ impl Runtime {
                     ok: false,
                     error: Some(format!("invalid control request: {error}")),
                     stats: None,
+                    import_report: None,
                 },
             },
             Err(error) => ControlResponse {
                 ok: false,
                 error: Some(format!("failed to read control request: {error}")),
                 stats: None,
+                import_report: None,
             },
         };
         let write_result = serde_json::to_vec(&response)
@@ -1034,17 +1059,25 @@ impl Runtime {
             .ok_or_else(|| RuntimeError::Control("daemon returned no statistics".to_owned()))
     }
 
-    pub fn request_peer_replacement(
-        interface: String,
-        peers: Vec<PeerConfig>,
-    ) -> Result<(), RuntimeError> {
-        Self::send_control_request(ControlRequest::ReplacePeers { interface, peers }).map(|_| ())
-    }
-
     /// Send a complete TOML configuration to the running daemon for validation
     /// and transactional application.
     pub fn request_config_reload(toml: String) -> Result<(), RuntimeError> {
         Self::send_control_request(ControlRequest::ReloadConfig { toml }).map(|_| ())
+    }
+
+    /// Ask the daemon to import an interface into its active configuration.
+    pub fn request_config_import(
+        source: String,
+        interface: String,
+        replace: bool,
+    ) -> Result<crate::import::ImportReport, RuntimeError> {
+        Self::send_control_request(ControlRequest::ImportConfig {
+            source,
+            interface,
+            replace,
+        })?
+        .import_report
+        .ok_or_else(|| RuntimeError::Control("daemon returned no import report".to_owned()))
     }
 
     fn send_control_request(request: ControlRequest) -> Result<ControlResponse, RuntimeError> {
@@ -1125,6 +1158,36 @@ impl Runtime {
 
         // Runtime::drop performs the single ordered shutdown sequence.
         Ok(())
+    }
+}
+
+impl ControlApi for Runtime {
+    fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError> {
+        let candidate = Config::parse_toml(&request.toml)
+            .map_err(|error| ControlError::new(error.to_string()))?;
+        Runtime::reload_config(self, candidate)
+            .map_err(|error| ControlError::new(error.to_string()))
+    }
+
+    fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError> {
+        self.collect_stats()
+            .map_err(|error| ControlError::new(error.to_string()))
+    }
+
+    fn import_config(
+        &mut self,
+        request: ImportConfigRequest,
+    ) -> Result<crate::import::ImportReport, ControlError> {
+        let (candidate, report) = crate::import::import_into_config(
+            &self.config,
+            &request.source,
+            &request.interface,
+            request.replace,
+        )
+        .map_err(|error| ControlError::new(error.to_string()))?;
+        Runtime::reload_config(self, candidate)
+            .map_err(|error| ControlError::new(error.to_string()))?;
+        Ok(report)
     }
 }
 
