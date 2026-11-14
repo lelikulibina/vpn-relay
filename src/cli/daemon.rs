@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::os::fd::FromRawFd;
 use std::path::PathBuf;
-use vpn_relay::{Config, Runtime};
+use crate::{Config, Runtime};
 
 pub(super) fn init_logging(
     path: Option<PathBuf>,
@@ -25,7 +25,10 @@ pub(super) fn init_logging(
     Ok(())
 }
 
-pub(super) fn daemonize(config: Config, log_path: Option<PathBuf>) -> Result<(), Box<dyn std::error::Error>> {
+pub(super) fn daemonize(
+    config: Config,
+    log_path: Option<PathBuf>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let log_path = match log_path {
         Some(path) if !path.is_absolute() => Some(std::env::current_dir()?.join(path)),
         other => other,

@@ -2,15 +2,23 @@ mod args;
 mod daemon;
 mod output;
 
-use vpn_relay::{Config, Runtime};
+use crate::{Config, Runtime};
 
 pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     let Some(parsed) = args::Args::parse()? else {
         return Ok(());
     };
     let args::Args {
-        config_path, check_only, stats_requested, background, log_path, log_enabled,
-        replace_peers_interface, reload_config_requested, import_args, yes,
+        config_path,
+        check_only,
+        stats_requested,
+        background,
+        log_path,
+        log_enabled,
+        replace_peers_interface,
+        reload_config_requested,
+        import_args,
+        yes,
     } = parsed;
 
     if stats_requested {
@@ -20,7 +28,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if let Some((source, name)) = import_args {
-        let exists = vpn_relay::import::interface_exists(&config_path, &name)?;
+        let exists = crate::import::interface_exists(&config_path, &name)?;
         if exists && !yes {
             eprintln!("Интерфейс '{name}' уже существует. Заменить его? [y/N]");
             let mut answer = String::new();
@@ -72,7 +80,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if check_only {
-        vpn_relay::backend::BackendRegistry::default().validate_config(&config)?;
+        crate::backend::BackendRegistry::default().validate_config(&config)?;
         println!("configuration is valid: {}", config_path.display());
         return Ok(());
     }
