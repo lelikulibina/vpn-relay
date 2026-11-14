@@ -86,11 +86,16 @@ pub struct RoutingPlan {
 
 impl RoutingPlan {
     /// Assign stable conntrack IDs while preserving the routing-plan facade.
-    pub(crate) fn assign_stable_conntrack_marks(&mut self, history: &mut Vec<RoutingDecision>) -> Result<(), String> {
+    pub(crate) fn assign_stable_conntrack_marks(
+        &mut self,
+        history: &mut Vec<RoutingDecision>,
+    ) -> Result<(), String> {
         conntrack::assign_stable_conntrack_marks(self, history)
     }
 
-    pub(crate) fn validate_conntrack_mark_history(history: &[RoutingDecision]) -> Result<(), String> {
+    pub(crate) fn validate_conntrack_mark_history(
+        history: &[RoutingDecision],
+    ) -> Result<(), String> {
         conntrack::validate_conntrack_mark_history(history)
     }
 

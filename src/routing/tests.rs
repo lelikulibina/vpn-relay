@@ -73,9 +73,7 @@ fn selector_free_routing_firewall_and_masquerade_are_generated() {
     assert!(script
         .contains("prerouting iifname \"wg-server\" ct state new meta nfproto ipv4 meta mark"));
     assert!(script.contains("input iifname \"wg-server\" meta nfproto ipv4 tcp dport { 22 }"));
-    assert!(
-        script.contains("output oifname \"awg-secondary\" meta nfproto ipv4 udp dport { 53 }")
-    );
+    assert!(script.contains("output oifname \"awg-secondary\" meta nfproto ipv4 udp dport { 53 }"));
     assert!(script.contains("postrouting iifname \"wg-server\" oifname \"awg-secondary\""));
     assert!(script.contains("meta nfproto ipv4 masquerade"));
     assert!(script
@@ -133,9 +131,8 @@ fn icmp_firewall_rules_use_valid_l4_protocol_selectors() {
     });
 
     let script = RoutingPlan::from_config(&config).nft_script();
-    assert!(script.contains(
-        "input iifname \"wg-server\" ip saddr 10.0.0.2/32 meta l4proto icmp ct state"
-    ));
+    assert!(script
+        .contains("input iifname \"wg-server\" ip saddr 10.0.0.2/32 meta l4proto icmp ct state"));
     assert!(script.contains(
         "output oifname \"awg-primary\" ip daddr 203.0.113.1/32 meta l4proto icmp ct state"
     ));
@@ -163,8 +160,7 @@ fn rule_without_source_or_destination_matches_entire_ingress_interface() {
 #[test]
 fn nft_rule_supports_multiple_cidrs_for_both_selectors() {
     let mut config = sample_config();
-    config.routing.rules[0].source =
-        Some(vec!["10.0.0.0/24".to_owned(), "10.1.0.0/24".to_owned()]);
+    config.routing.rules[0].source = Some(vec!["10.0.0.0/24".to_owned(), "10.1.0.0/24".to_owned()]);
     config.routing.rules[0].destination = Some(vec![
         "195.142.0.0/16".to_owned(),
         "79.100.22.0/24".to_owned(),
@@ -200,12 +196,8 @@ fn nft_policy_binds_managed_interfaces_to_numeric_kernel_indices() {
 
     let script = plan.nft_script();
     assert!(script.contains("managed_interfaces { type iface_index; elements = { 18, 19, 17 }"));
-    assert!(
-        script.contains("ipv6_drop_interfaces { type iface_index; elements = { 18, 19, 17 }")
-    );
-    assert!(
-        script.contains("prerouting iif @ipv6_drop_interfaces meta nfproto ipv6 counter drop")
-    );
+    assert!(script.contains("ipv6_drop_interfaces { type iface_index; elements = { 18, 19, 17 }"));
+    assert!(script.contains("prerouting iif @ipv6_drop_interfaces meta nfproto ipv6 counter drop"));
     assert!(script.contains("forward oif @ipv6_drop_interfaces meta nfproto ipv6 counter drop"));
     assert!(script.contains("output oif @ipv6_drop_interfaces meta nfproto ipv6 counter drop"));
     assert_eq!(script.matches("meta nfproto ipv6").count(), 3);
@@ -291,8 +283,7 @@ fn routing_plan_guarantees_socket_and_packet_mark_spaces_are_disjoint() {
     let plan = RoutingPlan::from_config(&sample_config());
     let packet_marks: std::collections::HashSet<_> =
         plan.egresses.iter().map(|egress| egress.mark).collect();
-    let socket_marks: std::collections::HashSet<_> =
-        plan.socket_marks.iter().copied().collect();
+    let socket_marks: std::collections::HashSet<_> = plan.socket_marks.iter().copied().collect();
 
     assert_eq!(packet_marks.len(), plan.egresses.len());
     assert_eq!(socket_marks.len(), plan.socket_marks.len());

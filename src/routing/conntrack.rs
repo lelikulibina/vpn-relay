@@ -58,9 +58,7 @@ pub(super) fn assign_stable_conntrack_marks(
 
 /// Reject corrupted or ambiguous persisted history instead of risking
 /// reuse of a mark that could still identify an older connection.
-pub(super) fn validate_conntrack_mark_history(
-    history: &[RoutingDecision],
-) -> Result<(), String> {
+pub(super) fn validate_conntrack_mark_history(history: &[RoutingDecision]) -> Result<(), String> {
     let mut used_marks = std::collections::BTreeSet::new();
     let mut keys = Vec::with_capacity(history.len());
 

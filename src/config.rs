@@ -565,7 +565,6 @@ impl Config {
         }
         Ok(resolved)
     }
-
 }
 
 /// Decode a WireGuard key from standard Base64 and require exactly 32 bytes.
@@ -581,7 +580,6 @@ pub fn decode_key(value: &str, field: &str) -> Result<[u8; 32], ConfigError> {
         ))
     })
 }
-
 
 fn invalid<T>(message: impl Into<String>) -> Result<T, ConfigError> {
     Err(ConfigError::Validation(message.into()))

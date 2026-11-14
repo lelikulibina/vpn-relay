@@ -258,10 +258,9 @@ fn reload_compatibility_rejects_tunnel_identity_and_lifecycle_changes() {
         .to_string()
         .contains("immutable tunnel parameters"));
 
-    let changed_socket_mark = Config::parse_toml(
-        &valid_config().replace("socket_fwmark = 4098", "socket_fwmark = 4099"),
-    )
-    .unwrap();
+    let changed_socket_mark =
+        Config::parse_toml(&valid_config().replace("socket_fwmark = 4098", "socket_fwmark = 4099"))
+            .unwrap();
     assert!(current
         .validate_reload_compatibility(&changed_socket_mark)
         .unwrap_err()
@@ -515,8 +514,7 @@ fn awg_parameters_are_flattened_and_legacy_nested_table_is_rejected() {
     assert!(serialized.contains("jc = 5"));
     assert!(!serialized.contains("[awg]"));
 
-    let legacy =
-        valid_config().replace("jc = 5\n", "") + "\n[interfaces.awg-uplink.awg]\njc = 5\n";
+    let legacy = valid_config().replace("jc = 5\n", "") + "\n[interfaces.awg-uplink.awg]\njc = 5\n";
     let error = Config::parse_toml(&legacy).unwrap_err().to_string();
     assert!(error.contains("move AWG parameters directly into [interfaces.awg-uplink]"));
 }

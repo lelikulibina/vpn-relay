@@ -45,10 +45,8 @@ fn recovery_rejects_unsupported_legacy_journal_version() {
 #[test]
 fn unmanaged_forwarding_validation_ignores_allowlisted_links() {
     let allowed = std::collections::BTreeSet::from(["wg0".to_owned()]);
-    validate_unmanaged_forwarding_with(&allowed, &["wg0".to_owned()], |_| {
-        Ok(Some("1".to_owned()))
-    })
-    .unwrap();
+    validate_unmanaged_forwarding_with(&allowed, &["wg0".to_owned()], |_| Ok(Some("1".to_owned())))
+        .unwrap();
 }
 
 #[test]
@@ -147,16 +145,15 @@ fn control_request_protocol_exposes_only_three_application_operations() {
     let operations = ["get_stats", "reload_config", "import_config"];
     for (request, operation) in requests.iter().zip(operations) {
         let encoded = serde_json::to_vec(request).unwrap();
-        assert!(String::from_utf8_lossy(&encoded)
-            .contains(&format!("\"operation\":\"{operation}\"")));
+        assert!(
+            String::from_utf8_lossy(&encoded).contains(&format!("\"operation\":\"{operation}\""))
+        );
         assert_eq!(
             serde_json::from_slice::<ControlRequest>(&encoded).unwrap(),
             *request
         );
     }
-    assert!(
-        serde_json::from_slice::<ControlRequest>(br#"{"operation":"replace_peers"}"#).is_err()
-    );
+    assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"replace_peers"}"#).is_err());
     assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"unknown"}"#).is_err());
 }
 
@@ -583,10 +580,7 @@ fn interface_forwarding_enable_failure_matrix_restores_every_interface() {
                 |name, _| {
                     let position = verify_position;
                     verify_position += 1;
-                    if failure_kind == "verify"
-                        && position == failure_position
-                        && !injected.get()
-                    {
+                    if failure_kind == "verify" && position == failure_position && !injected.get() {
                         injected.set(true);
                         return Err(RuntimeError::Forwarding(format!(
                             "injected identity failure at {name}"
@@ -909,8 +903,7 @@ fn forwarding_journal_persistence_failure_matrix_preserves_atomicity() {
 
     for stage in ["create", "write", "file_sync", "rename", "directory_sync"] {
         let path = forwarding_state_test_path(&format!("persist-{stage}"));
-        let temporary_path =
-            path.with_extension(format!("forwarding.tmp-{}", std::process::id()));
+        let temporary_path = path.with_extension(format!("forwarding.tmp-{}", std::process::id()));
         let mut io = FaultInjectingForwardingJournalIo { fail_at: stage };
 
         let result = persist_forwarding_state_with(&path, namespace_inode, &state, &mut io);
@@ -1135,9 +1128,8 @@ fn multi_device_peer_rollback_failure_is_reported_for_fatal_shutdown() {
     ];
     let changed = vec![(0, "wg0".to_owned()), (1, "wg1".to_owned())];
 
-    let (committed, _) =
-        commit_peer_replacements(&mut devices, &changed, &candidate, &prepared)
-            .expect_err("second device must fail");
+    let (committed, _) = commit_peer_replacements(&mut devices, &changed, &candidate, &prepared)
+        .expect_err("second device must fail");
     assert_eq!(committed, vec![0]);
     let failures = rollback_peer_replacements(&mut devices, &committed, &previous, &prepared);
     assert_eq!(failures.len(), 1);
@@ -1187,11 +1179,7 @@ impl ForwardingJournalIo for FaultInjectingForwardingJournalIo {
             .open(path)
     }
 
-    fn write_state(
-        &mut self,
-        file: &mut File,
-        saved: &ForwardingStateFile,
-    ) -> std::io::Result<()> {
+    fn write_state(&mut self, file: &mut File, saved: &ForwardingStateFile) -> std::io::Result<()> {
         if self.fail_at == "write" {
             file.write_all(b"{")?;
             return Err(Self::error("write"));
