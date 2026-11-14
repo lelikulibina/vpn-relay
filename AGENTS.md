@@ -65,17 +65,20 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
 - `src/routing.rs` — backend-independent routing plan, egress resources и команды iproute2.
 - `src/routing/conntrack.rs` — allocation и validation durable conntrack decision IDs.
-- `src/routing/nft.rs` — nftables policy rendering.
+- `src/routing/nft.rs` — nftables policy rendering facade.
+- `src/routing/nft_json.rs` — typed nftables 0.6.3 schema construction and narrowly scoped JSON patch for `iface_index`.
 - `src/routing/tests.rs` — routing plan и conntrack regression tests.
 - `src/routing/nft.rs` — чистая генерация fail-closed nftables policy из `RoutingPlan`; метод `RoutingPlan::nft_script` сохранён как совместимый facade.
 - `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
 - `src/linux/tests.rs` — Linux adapter и interface identity regression tests.
-- `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
+- `src/linux/nftables.rs` — adapter применения typed nftables JSON batch, ownership checks, atomic table replacement/removal и rollback. Применение остаётся через системный `nft -j -f -`, потому что crate 0.6.3 сам вызывает этот executable.
 - `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
 - `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; делегирует запросы в `ControlApi`.
 - `src/control/unix/tests.rs` — wire framing, timeout и transport regression tests.
-- `src/runtime.rs` — orchestration и lifecycle: startup/shutdown, reload/peer replacement transactions, snapshots/stats и signal handling.
+- `src/runtime.rs` — startup orchestration, shared runtime state, snapshots/stats и signal handling.
+- `src/runtime/reload.rs` — transactional live config reload, peer-only replacement и rollback.
+- `src/runtime/lifecycle.rs` — event loop и ordered shutdown/drop lifecycle.
 - `src/runtime/tests.rs` — runtime, state, socket, forwarding и peer transaction regression tests.
 - `src/runtime/control_api.rs` — реализация transport-independent `ControlApi` для Runtime; переводит DTO в application operations, без Unix wire protocol.
 - `src/runtime/control_socket.rs` — ownership-safe bind/drop Unix control socket, проверка inode/device и permissions.
@@ -222,11 +225,11 @@ cargo clippy --locked --all-targets
 cargo test --locked --all-targets
 ```
 
-Большая часть unit tests сейчас находится рядом с production code в `#[cfg(test)] mod tests`:
+Unit tests размещены в отдельных логических child modules (`src/*/tests.rs`), чтобы production-файлы оставались компактнее:
 - `config.rs`: parsing, schema validation, reload compatibility, marks, CIDRs, firewall config;
 - `routing.rs`: nft script, selectors, NAT, conntrack marks, routing plans;
 - `linux.rs`: ownership detection, install/rollback failure matrices, rtnetlink parsing, identity checks;
-- `runtime.rs`: lock/socket/state security, durable journal, forwarding restore, reload rollback;
+- `runtime.rs` и `runtime/tests.rs`: lock/socket/state security, durable journal, forwarding restore, reload rollback;
 - `import.rs`: WG/AWG parsing, warnings, atomic replacement;
 - `backend/boringtun.rs`: endpoint preflight and peer parameter conversion;
 - `main.rs`: formatting counters and handshake age.
@@ -261,11 +264,11 @@ Release workflow запускается по тегам `vpn-relay-v*`, свер
 ## 10. Текущие архитектурные узкие места (наблюдения аудита)
 
 Это не список ошибок datapath, а точки, которые повышают стоимость сопровождения:
-- `runtime.rs` (около 3.3k строк) смешивает runtime orchestration, control protocol, IPC socket lifecycle, instance locking, peer/reload transactions, durable conntrack state, forwarding journal/sysctl recovery и большое число тестов.
-- `linux.rs` (около 2.5k строк) смешивает process execution, nftables ownership/transactions, iproute2 policy routing, link identity, rtnetlink wire encoding/parsing, forwarding sysctl adapter и тесты.
-- `config.rs` (около 2k строк) объединяет schema, defaults, serde adapters, semantic validation, reload compatibility, endpoint/key/CIDR parsing и тесты.
-- `routing.rs` (около 1.4k строк) содержит plan construction, conntrack mark history, nftables code generation, ip command generation и тесты.
-- `import.rs` (около 700 строк) содержит importer parser, semantic mapping, TOML rendering/validation, atomic persistence и tests.
+- `runtime.rs` декомпозирован на startup orchestration и отдельные модули control API/socket, lifecycle, reload, peers, state и forwarding; регрессионные тесты остаются в `runtime/tests.rs`.
+- `linux.rs` остаётся общей точкой для process execution, link identity, TUN lifecycle и rtnetlink; специализированные nftables и iproute2 операции вынесены в adapters.
+- `config.rs` разделяет schema/defaults/reload compatibility от `config/endpoint.rs`, `config/validation.rs` и `config/tests.rs`.
+- `routing.rs` строит plan; conntrack history и nftables JSON generation находятся в `routing/conntrack.rs`, `routing/nft.rs` и `routing/nft_json.rs`.
+- `import.rs` координирует import/merge/validation/atomic persistence; parsing WG/AWG вынесен в `import/parser.rs`.
 - Production code и tests находятся в тех же больших файлах; это удобно для локальных приватных helper tests, но ухудшает навигацию и делает файлы тяжёлыми для ревью.
 - `main.rs` сам реализует CLI parsing, process daemonization, logging setup и presentation logic; эти обязанности можно разделить.
 - Integration shell scripts крупные и сценарно насыщенные. Их размер частично оправдан end-to-end nature, но сценарии/fixtures/assertions можно лучше структурировать.

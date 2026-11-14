@@ -5,12 +5,18 @@
 
 - `src/config.rs` и `src/config/validation.rs` — TOML-модель, parsing, reload compatibility и fail-closed validation.
 - `src/routing.rs` и `src/routing/conntrack.rs` — routing plan, routing decisions и durable conntrack decision IDs.
-- `src/routing/nft.rs` — генерация nftables policy.
-- `src/linux/nftables.rs` — применение nftables, table ownership checks и transactional batch.
+- `src/routing/nft.rs` и `src/routing/nft_json.rs` — генерация policy через типы `nftables` crate 0.6.3; локальные копии schema-типов не создаются.
+- `src/linux/nftables.rs` — применение JSON batch, ownership checks, atomic replacement/removal и rollback через `nft -j -f -`.
 - `src/linux/policy_routing.rs` — применение и cleanup iproute2 policy routing с ownership checks.
 - `src/linux.rs` — общие Linux-команды, interface identity, TUN link и rtnetlink.
-- `src/runtime.rs` и `src/runtime/` — startup/shutdown orchestration, control socket/API, peer transactions, state и forwarding recovery.
+- `src/runtime.rs`, `src/runtime/lifecycle.rs`, `src/runtime/reload.rs` и остальные `src/runtime/` модули — startup, event loop/shutdown, transactional reload, control socket/API, peer transactions, state и forwarding recovery.
 - `src/backend/` — backend-neutral lifecycle и BoringTun WG/AWG backend.
+
+## Генерация и применение nftables JSON
+
+Policy строится через типы `nftables` 0.6.3 (`Nftables`, `Batch`, schema/statement/expression types). Приложение не дублирует типы библиотеки. Два ограничения upstream API требуют узкой постобработки сериализованного JSON: `SetType` не моделирует `iface_index`, а `Table` не моделирует table-level comment. `iface_index` патчится только в сериализованном поле set type; ownership marker представлен отдельной не-hooked цепочкой `vpn_relay_owner` с rule comment и inert counter + return. Эта цепочка не участвует в packet path.
+
+`src/linux/nftables.rs` применяет сериализованный batch через `nft -j -f -`. Crate `nftables` также использует системный executable `nft`; зависимость от него сохранена и явно проверяется интеграционными тестами. Замена/удаление таблицы остаётся одной атомарной nftables transaction. Перед изменением и cleanup проверяется marker rule, чужие таблицы не перезаписываются и не удаляются.
 
 ## Путь пакета и порядок hooks
 

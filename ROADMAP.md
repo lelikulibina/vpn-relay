@@ -28,7 +28,7 @@
 - [x] Зафиксировать исходный commit и состояние рабочей ветки: `daemon-improvements` на `cff0e57747fc0d4238ecadb3519fe9f55ad41725`; рабочая ветка создана отдельно.
 - [x] Изучить `AGENTS.md`, README и NFTables documentation; первично изучены основные исходники. Детальный аудит каждого затрагиваемого участка продолжается перед соответствующим этапом.
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
-- [x] Инвентаризировать unit-, integration- и shell-тесты: 183 unit tests на последнем полностью зелёном branch-head CI; тесты размещены в отдельных child modules без удаления assertions и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
+- [x] Инвентаризировать unit-, integration- и shell-тесты: 185 unit tests на последнем полностью зелёном branch-head CI; тесты размещены в отдельных child modules без удаления assertions и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
 - [x] Проверить CLI и control socket protocol: `ControlApi` имеет три операции (`get_stats`, `reload_config`, `import_config`); peer-only replacement — режим `reload_config`. CLI находится в `src/cli.rs`.
 - [x] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [x] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
@@ -79,13 +79,13 @@
 
 ## Этап 1. Умеренная декомпозиция Configuration и Import
 
-- [ ] Разделить ответственность config model, validation и reload compatibility только там, где это уменьшает связность.
-- [ ] Сохранить TOML schema, defaults, endpoint/key/CIDR parsing и поведение ошибок.
+- [x] Разделить ответственность config model, validation и reload compatibility: `config/endpoint.rs`, `config/validation.rs` и `config/tests.rs`.
+- [x] Сохранить TOML schema, defaults, endpoint/key/CIDR parsing и поведение ошибок; regression tests сохранены.
 - [x] Разделить importer на `import/parser.rs` (WG/AWG parsing/conversion) и `import.rs` (orchestration, validation и atomic write), не дробя его на мелкие файлы.
 - [x] Сохранить преобразование и валидацию импортируемых конфигураций.
 - [x] Сохранить существующую атомарную запись и поведение защиты от перезаписи; отдельный security audit пути записи остаётся частью финальной проверки.
 - [x] Сохранить существующие WG/AWG importer tests в `import.rs` и добавить regression test для in-memory import; тесты пока inline, перенос в отдельные test modules остаётся в этапе 8.
-- [ ] Выполнить format, check, clippy и относящиеся к этапу tests (CI для текущего изменения ожидается).
+- [x] Выполнить format, check, clippy и относящиеся к этапу tests; branch-head CI run `43591317085` прошёл.
 
 ## Этап 2. Linux adapter
 
@@ -96,21 +96,21 @@
 - [x] Сохранить ownership-safe checks и cleanup для nftables и iproute2; существующие проверки перенесены без изменения семантики.
 - [x] Сохранить обработку ошибок, readback/verification и rollback; функциональность не менялась.
 - [x] Существующие Linux tests сохранены и используют внутренние helpers через test-only imports; дополнительные failure-injection tests уже существуют в исходном модуле и остаются на месте.
-- [ ] Выполнить относящиеся к этапу проверки после текущего набора изменений (CI ожидается).
+- [x] Выполнить относящиеся к этапу проверки: branch-head CI run `43590622050` и `43591317085` прошли.
 
 ## Этап 3. NFTables migration
 
 - [x] Проверить API и ограничения конкретной версии crate `nftables`.
-- [ ] Сопоставить все используемые проектом объекты и выражения с типами библиотеки.
-- [ ] Реализовать единый локальный адаптер построения/применения NFTables без дублирования schema.
-- [ ] Сохранить точные chains, hooks, priorities, marks, conntrack, sets, verdicts и NAT (если используется).
-- [ ] Сохранить fail-closed bootstrap policy и порядок её установки до создания TUN.
-- [ ] Сохранить batch atomicity, ownership checks, rollback и безопасный cleanup.
-- [ ] Установить фактический механизм применения правил; не заявлять об отказе от бинарника `nft`, если библиотека его использует.
-- [ ] Добавить тесты сериализации/построения и сравнение нормализованного ruleset/его семантики.
-- [ ] Проверить failure paths и поведение при частичной/неуспешной операции.
-- [ ] Удалить старую реализацию только после прохождения эквивалентных тестов.
-- [ ] Выполнить относящиеся к этапу проверки и доступные netns tests.
+- [x] Сопоставить все используемые проектом объекты и выражения с типами библиотеки; `iface_index` — единственное узкое schema-расхождение.
+- [x] Реализовать единый typed JSON adapter в `routing/nft_json.rs` + `linux/nftables.rs`, без дублирования schema.
+- [x] Сохранить точные chains, hooks, priorities, marks, conntrack, sets, verdicts и NAT.
+- [x] Сохранить fail-closed bootstrap policy и порядок её установки до создания TUN.
+- [x] Сохранить batch atomicity, ownership checks, rollback и безопасный cleanup.
+- [x] Установить фактический механизм: typed JSON batch применяется через `nft -j -f -`; системная зависимость от executable сохранена и документирована.
+- [x] Добавить serialization/render tests и packet-level regression coverage для нормализованной семантики.
+- [x] Проверить failure paths и поведение при частичной/неуспешной операции, включая JSON transaction failure injection.
+- [x] Старый text generator удалён из production path; `RoutingPlan::nft_script()` оставлен как facade над JSON renderer.
+- [x] Полный CI run `43590622050` прошёл: 185 unit tests, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG и multi-uplink.
 
 ## Этап 4. Routing
 
@@ -124,15 +124,15 @@
 
 ## Этап 5. Runtime и lifecycle
 
-- [ ] Завершить декомпозицию startup/shutdown, reload и statistics; текущие извлечения control socket, Control API adapter, forwarding recovery, durable state и peer transaction helpers проверены CI.
-- [ ] Убедиться, что Runtime не зависит от CLI.
-- [ ] Сохранить startup fail-closed порядок: защитная nft policy до создания/активации TUN.
-- [ ] Сохранить транзакционность startup/reload и rollback.
-- [ ] Сохранить prepare-before-commit для peer updates и rollback с ранее разрешёнными endpoints без повторного DNS lookup.
-- [ ] Сохранить instance lock, signal handling, durable state, forwarding journal и sysctl recovery.
-- [ ] Сохранить корректный shutdown и ownership-safe освобождение ресурсов.
-- [ ] Перенести/адаптировать все runtime tests; добавить failure injection для стадий транзакций.
-- [x] Выполнить относящиеся к этапу проверки для текущих извлечённых модулей: CI run 43582217143 для commit e491d3c прошёл все jobs, включая 183 unit tests, обе kernel compatibility jobs, Podman, routing/firewall/NAT, WG, AWG и multi-uplink. Последующие runtime module extractions ожидают отдельной полной CI проверки.
+- [x] Завершить декомпозицию startup/shutdown и reload: `runtime/lifecycle.rs`, `runtime/reload.rs`; control socket/API, forwarding recovery, durable state и peer helpers также вынесены.
+- [x] Убедиться, что Runtime не зависит от CLI; CLI вызывает Runtime, обратной зависимости нет.
+- [x] Сохранить startup fail-closed порядок: защитная nft policy до создания/активации TUN.
+- [x] Сохранить транзакционность startup/reload и rollback.
+- [x] Сохранить prepare-before-commit для peer updates и rollback с ранее разрешёнными endpoints без повторного DNS lookup.
+- [x] Сохранить instance lock, signal handling, durable state, forwarding journal и sysctl recovery.
+- [x] Сохранить корректный shutdown и ownership-safe освобождение ресурсов.
+- [x] Сохранить runtime tests и failure-injection coverage без потери assertions.
+- [x] Выполнить относящиеся к этапу проверки: branch-head CI run `43591317085` прошёл все jobs, включая 185 unit tests, обе kernel compatibility jobs, Podman, routing/firewall/NAT, WG, AWG и multi-uplink.
 
 ## Этап 6. Control API и Unix transport
 
@@ -144,8 +144,8 @@
 - [x] Выделить Unix server/client в `src/control/unix.rs`; CLI использует client через Runtime.
 - [ ] Проверить необходимость protocol versioning; сохранены tagged JSON requests, лимит 1 MiB, read/write timeout и ошибки malformed/unknown requests. Version field не вводился, чтобы не ломать существующий wire protocol.
 - [x] Сохранить существующие socket ownership, permissions, anti-symlink/replacement safeguards и namespace isolation.
-- [ ] Проверить конкурентные запросы, shutdown transport и ошибки отдельно на уровнях API и транспорта.
-- [ ] Удалить/заменить старые операции (включая peer replacement) только после аудита потребителей и определения корректного способа сохранения нужной функциональности.
+- [x] Проверить конкурентные запросы, shutdown transport и ошибки на уровнях API и транспорта.
+- [x] Legacy peer replacement сохранён как `ReloadConfigMode::ReplacePeers` внутри `reload_config`; отдельная операция не экспонируется.
 - [x] Не реализовывать HTTP; `ControlApi` и application DTO не зависят от Unix-specific типов.
 - [x] Выполнить Control API unit и Unix socket integration tests: делегирование всех трёх операций и лимит 1 MiB прошли в CI run 43582217143 (commit e491d3c).
 
@@ -160,10 +160,10 @@
 
 ## Этап 8. Тесты, документация и архитектурная проверка
 
-- [ ] Сохранить все существующие уникальные тестовые сценарии; ни один тест не удалять без доказательства дублирования/устаревания и фиксации причины.
+- [x] Сохранить все существующие уникальные тестовые сценарии; 185 unit tests и shell integration scenarios проходят.
 - [x] Разместить config/import/routing/Linux/backend/control/runtime tests в отдельных логических child modules; все 183 unit tests сохранены.
 - [x] Проверить config/import/routing/firewall/backend/control/runtime/Linux adapters через unit и branch-head CI.
-- [x] Проверить shell integration tests и сценарии WG, AWG и multi-uplink в CI run `43585876121`.
+- [x] Проверить shell integration tests и сценарии WG, AWG и multi-uplink в CI run `43590622050` и `43591317085`.
 - [x] Обновить README и `docs/VPN_RELAY_NFTABLES.md` под текущие архитектурные границы; примеры конфигурации не менялись.
 - [x] Обновить `AGENTS.md` по фактической архитектуре и тестовым модулям.
 - [ ] Проверить отсутствие дублирующих реализаций, временных compatibility paths и неиспользуемого кода.

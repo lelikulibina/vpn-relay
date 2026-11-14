@@ -11,8 +11,8 @@ mod control_api;
 mod control_socket;
 mod forwarding;
 mod lifecycle;
-mod reload;
 mod peers;
+mod reload;
 mod state;
 use control_socket::*;
 use forwarding::*;
@@ -407,7 +407,6 @@ impl Runtime {
                 .collect()
         })
     }
-
 }
 
 fn install_signal_handlers() -> Result<(), RuntimeError> {
@@ -438,5 +437,3 @@ fn hex_key(key: &[u8; 32]) -> String {
 // Forwarding journal and sysctl recovery live in the dedicated submodule.
 #[cfg(test)]
 mod tests;
-
-
