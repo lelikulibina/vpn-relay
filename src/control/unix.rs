@@ -3,14 +3,16 @@
 //! This module owns only wire DTOs, JSON framing and socket I/O. Application
 //! behavior is delegated to the parent module's ControlApi trait.
 
-use super::{ControlApi, ImportConfigRequest, ImportReport, InterfaceStats, ReloadConfigMode, ReloadConfigRequest};
+use super::{
+    ControlApi, ImportConfigRequest, ImportReport, InterfaceStats, ReloadConfigMode,
+    ReloadConfigRequest,
+};
 use std::io::{Read, Write};
 use std::os::unix::net::UnixStream;
 use std::path::Path;
 use std::time::Duration;
 
 /// Request DTO used by the current Unix Domain Socket transport.
-#[cfg(target_os = "linux")]
 #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub(crate) enum ControlRequest {
