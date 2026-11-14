@@ -698,4 +698,3 @@ pub(super) fn restore_forwarding(state: &ForwardingState) -> Result<(), RuntimeE
         |key, value| write_forwarding_state_value(state, key, value),
     )
 }
-
