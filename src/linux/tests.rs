@@ -668,11 +668,10 @@ fn nft_apply_creates_missing_table_with_typed_json_batch() {
     assert!(objects[0].get("delete").is_none());
     assert_eq!(objects[0]["add"]["table"]["family"], "inet");
     assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
-    assert_eq!(
-        objects[0]["add"]["table"]["comment"],
-        "managed by vpn-relay"
-    );
-    assert_eq!(objects[1]["add"]["set"]["name"], "managed_interfaces");
+    assert_eq!(objects[1]["add"]["chain"]["name"], "vpn_relay_owner");
+    assert_eq!(objects[2]["add"]["rule"]["chain"], "vpn_relay_owner");
+    assert_eq!(objects[2]["add"]["rule"]["comment"], "managed by vpn-relay");
+    assert_eq!(objects[3]["add"]["set"]["name"], "managed_interfaces");
 }
 
 #[test]
@@ -692,7 +691,7 @@ fn nft_apply_replaces_owned_table_in_one_atomic_json_batch() {
     let objects = document["nftables"].as_array().unwrap();
     assert_eq!(objects[0]["delete"]["table"]["family"], "inet");
     assert_eq!(objects[0]["delete"]["table"]["name"], "vpn_relay");
-    assert_eq!(objects[2]["add"]["rule"]["comment"], "managed by vpn-relay");
+    assert_eq!(objects[3]["add"]["rule"]["comment"], "managed by vpn-relay");
     assert!(matches!(result, Err(LinuxError::Command { ref stderr, .. })
         if stderr.contains("injected transaction failure")));
 }
@@ -1060,13 +1059,13 @@ fn interface_identity_propagates_missing_link_lookup_errors() {
 }
 
 #[test]
-fn nft_ownership_requires_table_level_comment_and_exact_identity() {
-    let owned = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
+fn nft_ownership_requires_exact_owner_chain_rule_and_table_identity() {
+    let owned = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"vpn_relay_owner","comment":"managed by vpn-relay","expr":[{"return":null}]}}]}"#;
     assert!(table_is_owned(owned, "inet", "vpn_relay"));
     assert!(!table_is_owned(owned, "ip", "vpn_relay"));
     assert!(!table_is_owned(owned, "inet", "other"));
-    let rule_comment = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
-    assert!(!table_is_owned(rule_comment, "inet", "vpn_relay"));
+    let wrong_chain = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"input","comment":"managed by vpn-relay"}}]}"#;
+    assert!(!table_is_owned(wrong_chain, "inet", "vpn_relay"));
     assert!(!table_is_owned("not json", "inet", "vpn_relay"));
 }
 
