@@ -149,7 +149,7 @@ BoringTun backend создаёт устройство с отключённым 
 
 `Runtime::start` — критическая последовательность startup и rollback. `Runtime::run` обслуживает control socket и shutdown signals. `Drop`/cleanup восстанавливают принадлежащие daemon ресурсы, но не должны маскировать fatal transition.
 
-Состояние экземпляра привязано к network namespace inode. Runtime использует (реализация instance lock и namespace-scoped paths — `runtime/lock.rs`; control Unix socket lifecycle — `runtime/control_socket.rs`; durable conntrack mark history — `runtime/state.rs`; IPv4 forwarding journal and recovery — `runtime/forwarding.rs`):
+Состояние экземпляра привязано к network namespace inode. Runtime использует (реализация instance lock и namespace-scoped paths — `runtime/lock.rs`; control Unix socket lifecycle — `control/unix.rs`; durable conntrack mark history — `runtime/state.rs`; IPv4 forwarding journal and recovery — `runtime/forwarding.rs`):
 - `/run/vpn-relay-netns-<inode>.lock` — flock instance lock;
 - соответствующий `.sock` — Unix domain control socket;
 - `.marks` — durable conntrack decision mark history;
