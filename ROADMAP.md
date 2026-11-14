@@ -47,6 +47,12 @@
 - CI run `43549664605` для commit `fcf97a8512adae8c6f02674a32caf28ce3ab6b1d` завершился success: format, check, clippy, 181 unit tests, kernel compatibility Ubuntu 22.04/24.04, Podman, netns routing/firewall/NAT, WG traffic, AWG traffic и multi-uplink.
 - Локальные команды в среде разработки не выполнялись; проверки подтверждены GitHub Actions.
  
+### Configuration and routing extraction progress
+
+- `config/endpoint.rs` now owns endpoint parsing and DNS-name validation; `PeerEndpoint` and `EndpointHost` remain re-exported from `config` to preserve the public API.
+- `routing/nft.rs` now owns nftables policy rendering and its selector helpers; `RoutingPlan::nft_script()` remains the public facade. Rule contents and ordering are intended to remain byte-for-byte equivalent.
+- These latest extractions await the branch-head CI run before being marked complete.
+
 ### Runtime extraction progress
 
 - `runtime/forwarding.rs`: forwarding sysctl lifecycle, journal persistence, interface validation and recovery.
