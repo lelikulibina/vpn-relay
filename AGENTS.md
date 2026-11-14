@@ -57,7 +57,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
 - `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
 - `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
-- `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, генерация nftables script и команд iproute2, unit tests.
+- `src/routing.rs` и `src/routing/` — backend-independent routing plan: `mod.rs` строит egress resources/routing decisions и команды iproute2; `marks.rs` отвечает за durable conntrack decision marks; `nft_text.rs` генерирует текущий nftables script; `tests.rs` содержит routing unit tests. Генератор остаётся чистым и не применяет правила.
 - `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
 - `src/runtime.rs` — orchestration и lifecycle: instance lock, Unix control socket, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
