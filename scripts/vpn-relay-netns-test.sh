@@ -316,8 +316,9 @@ cat >"$TMP/fail-interface-and-nft-cleanup/nft" <<EOF
 #!/bin/sh
 if [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
     payload=\$(cat)
-    if grep -Fq '"delete"' <<<"\$payload" && grep -Fq '"table"' <<<"\$payload" \\
-        && grep -Fq 'vpn_relay_it' <<<"\$payload"; then
+    if printf '%s' "\$payload" | grep -Fq '"delete"' \\
+        && printf '%s' "\$payload" | grep -Fq '"table"' \\
+        && printf '%s' "\$payload" | grep -Fq 'vpn_relay_it'; then
         echo "injected nftables deletion failure during startup rollback" >&2
         exit 43
     fi
