@@ -60,7 +60,9 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write; import tests.
 - `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
 - `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, генерация nftables script и команд iproute2, unit tests.
-- `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
+- `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
+- `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
+- `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
 - `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client.
 - `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью. Не содержит бизнес-логики; вызывает `ControlApi`.
@@ -119,7 +121,7 @@ BoringTun backend создаёт устройство с отключённым 
 - firewall allow exceptions для host INPUT/OUTPUT;
 - nftables policy и iproute2 команды.
 
-`routing.rs` генерирует правила, но не применяет их. Применение и ownership checks находятся в `linux.rs`. Документ с детальной семантикой — `docs/VPN_RELAY_NFTABLES.md`.
+`routing.rs` генерирует правила, но не применяет их. Применение nftables и ownership checks находятся в `linux/nftables.rs`; policy-routing apply/cleanup — в `linux/policy_routing.rs`. Документ с детальной семантикой — `docs/VPN_RELAY_NFTABLES.md`.
 
 Ключевые правила:
 - Новый транзитный flow классифицируется по ingress + source/destination selectors и получает routing mark и conntrack decision ID.
