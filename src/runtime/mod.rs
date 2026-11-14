@@ -110,7 +110,6 @@ struct ControlResponse {
 mod control_socket;
 use control_socket::ControlSocket;
 
-
 impl Runtime {
     /// Start all interfaces through their registered backend, then install
     /// shared routing only after every tunnel has been configured.
