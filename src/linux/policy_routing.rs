@@ -442,7 +442,10 @@ pub fn apply_policy_routing(plan: &RoutingPlan) -> Result<(), LinuxError> {
     apply_policy_routing_with(plan, &mut run)
 }
 
-pub(super) fn apply_policy_routing_with<F>(plan: &RoutingPlan, run_command: &mut F) -> Result<(), LinuxError>
+pub(super) fn apply_policy_routing_with<F>(
+    plan: &RoutingPlan,
+    run_command: &mut F,
+) -> Result<(), LinuxError>
 where
     F: FnMut(&str, &[String]) -> Result<(), LinuxError>,
 {
@@ -543,7 +546,10 @@ pub fn remove_policy_routing(plan: &RoutingPlan) -> Result<(), LinuxError> {
     remove_policy_routing_with(plan, &mut run)
 }
 
-pub(super) fn remove_policy_routing_with<F>(plan: &RoutingPlan, run_command: &mut F) -> Result<(), LinuxError>
+pub(super) fn remove_policy_routing_with<F>(
+    plan: &RoutingPlan,
+    run_command: &mut F,
+) -> Result<(), LinuxError>
 where
     F: FnMut(&str, &[String]) -> Result<(), LinuxError>,
 {
