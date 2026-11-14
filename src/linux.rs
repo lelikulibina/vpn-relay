@@ -6,18 +6,18 @@ use std::process::Command;
 mod nftables;
 pub use nftables::{apply_nft, remove_nft};
 mod policy_routing;
+#[cfg(test)]
+use nftables::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
 pub use policy_routing::{
     allocate_policy_routing_resources, apply_egress_policy_routing, apply_policy_routing,
     remove_egress_policy_routing, remove_policy_routing,
 };
 #[cfg(test)]
 use policy_routing::{
-    apply_egress_policy_routing_with, apply_policy_routing_with,
-    remove_egress_policy_routing_with, remove_policy_routing_with, route_has_owned_identity,
-    rule_has_owned_identity, rule_matches_fwmark,
+    apply_egress_policy_routing_with, apply_policy_routing_with, remove_egress_policy_routing_with,
+    remove_policy_routing_with, route_has_owned_identity, rule_has_owned_identity,
+    rule_matches_fwmark,
 };
-#[cfg(test)]
-use nftables::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
 
 // Reserved iproute2 protocol tag identifying resources owned by vpn-relay.
 const ROUTING_PROTOCOL: &str = "242";
@@ -69,8 +69,6 @@ fn run(program: &str, args: &[String]) -> Result<(), LinuxError> {
 pub fn run_ip(args: &[String]) -> Result<(), LinuxError> {
     run("ip", args)
 }
-
-
 
 pub fn interface_index(name: &str) -> Result<u32, LinuxError> {
     let name_c = std::ffi::CString::new(name).map_err(|_| LinuxError::Conflict {
