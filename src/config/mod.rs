@@ -17,8 +17,8 @@ pub enum ConfigError {
 
 mod parse;
 mod reload;
-mod validate;
 mod schema;
+mod validate;
 pub use parse::{decode_key, EndpointHost, PeerEndpoint};
 pub use schema::{
     Config, DaemonConfig, FirewallConfig, FirewallProtocol, FirewallRule, FirewallRuleSet,
