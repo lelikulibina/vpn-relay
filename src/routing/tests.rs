@@ -647,3 +647,4 @@ fn nft_json_uses_ifname_sets_before_verified_indices_are_bound() {
         serde_json::json!(["awg-primary", "awg-secondary", "wg-server"])
     );
 }
+
