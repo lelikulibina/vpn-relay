@@ -140,7 +140,7 @@ pub(crate) fn handle_unix_connection(
                         }
                         Err(error) => Err(error),
                     },
-                    ControlRequest::ReloadConfig { toml } => {
+                    ControlRequest::ReloadConfig { toml, mode } => {
                         api.reload_config(ReloadConfigRequest { toml, mode })
                     }
                     ControlRequest::ImportConfig {
