@@ -10,7 +10,7 @@ pub(super) fn rule_has_owned_identity(line: &str, mark: u32, table: &str) -> boo
     selector.trim() == format!("from all fwmark 0x{mark:x} lookup {table} proto {ROUTING_PROTOCOL}")
 }
 
-pub(super) fn rule_uses_table(line: &str, table_id: u32) -> bool {
+fn rule_uses_table(line: &str, table_id: u32) -> bool {
     let fields: Vec<_> = line.split_whitespace().collect();
     let Some(index) = fields.iter().position(|field| *field == "lookup") else {
         return false;
@@ -19,7 +19,7 @@ pub(super) fn rule_uses_table(line: &str, table_id: u32) -> bool {
     fields.get(index + 1).copied() == Some(table.as_str())
 }
 
-pub(super) fn parse_fwmark_value(value: &str) -> Option<u32> {
+fn parse_fwmark_value(value: &str) -> Option<u32> {
     if let Some(hex) = value
         .strip_prefix("0x")
         .or_else(|| value.strip_prefix("0X"))
@@ -88,7 +88,7 @@ pub(super) fn route_has_owned_identity(line: &str, interface: &str) -> bool {
     true
 }
 
-pub(super) fn ensure_policy_slots_available(plan: &RoutingPlan) -> Result<(), LinuxError> {
+fn ensure_policy_slots_available(plan: &RoutingPlan) -> Result<(), LinuxError> {
     for &family in plan.ip_policy_families() {
         let args = vec![family.into(), "rule".into(), "show".into()];
         let rules = output("ip", &args)?;
