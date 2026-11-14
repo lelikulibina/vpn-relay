@@ -119,4 +119,3 @@ impl Drop for ControlSocket {
         remove_owned_socket_path(&self.path, self.device, self.inode);
     }
 }
-
