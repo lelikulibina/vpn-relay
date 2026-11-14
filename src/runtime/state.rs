@@ -62,7 +62,6 @@ impl InstanceLock {
     }
 }
 
-
 use crate::routing::RoutingPlan;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
@@ -213,4 +212,3 @@ pub(super) fn persist_conntrack_mark_history(
         .map_err(|error| RuntimeError::ConntrackMarkState(error.to_string()))?;
     Ok(())
 }
-
