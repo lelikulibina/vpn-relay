@@ -53,7 +53,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 
 ### Rust-код
 
-- `src/cli.rs` — тонкий platform entry point; Linux вызывает `vpn_relay::cli::run()`, не-Linux сообщает о неподдерживаемой платформе.
+- `src/main.rs` — тонкий platform entry point; Linux вызывает `vpn_relay::cli::run()`, не-Linux сообщает о неподдерживаемой платформе.
 - `src/cli.rs` — ручной разбор аргументов, foreground/background, настройка файлового логирования, табличная статистика и CLI dispatch. Операции управления работающим daemon вызывают Unix client через Runtime.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
 - `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
@@ -64,8 +64,8 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
 - `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
-- `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client.
-- `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью. Не содержит бизнес-логики; вызывает `ControlApi`.
+- `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; делегирует запросы в `ControlApi`.
+- `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью.
 - `src/runtime.rs` — orchestration и lifecycle: instance lock, подключение Unix socket к Control API, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
@@ -90,7 +90,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 Высокоуровневое направление зависимостей:
 
 ```text
-CLI (main.rs -> cli.rs)
+CLI (`main.rs` -> `cli.rs`)
   ├── Config / Import
   └── Runtime -> Unix socket client -> Control API
        ├── BackendRegistry
