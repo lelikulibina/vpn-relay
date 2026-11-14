@@ -128,6 +128,38 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_serializes_typed_error_categories() {
+        let mut api = MockApi {
+            fail: true,
+            ..MockApi::default()
+        };
+
+        let response = handle(&mut api, ControlRequest::GetStats);
+        let encoded = serde_json::to_value(&response).unwrap();
+        assert_eq!(encoded["error_kind"], "unavailable");
+
+        let decoded: ControlResponse = serde_json::from_value(encoded).unwrap();
+        assert_eq!(decoded.error_kind, Some(ControlErrorKind::Unavailable));
+
+        let response = handle(
+            &mut api,
+            ControlRequest::ReplacePeers {
+                interface: "wg0".to_owned(),
+                peers: Vec::new(),
+            },
+        );
+        assert_eq!(response.error_kind, Some(ControlErrorKind::Conflict));
+
+        let response = handle(
+            &mut api,
+            ControlRequest::ReloadConfig {
+                toml: "invalid".to_owned(),
+            },
+        );
+        assert_eq!(response.error_kind, Some(ControlErrorKind::Configuration));
+    }
+
+    #[test]
     fn response_remains_compatible_with_legacy_json() {
         let legacy = br#"{"ok":false,"error":"rejected","stats":null}"#;
         let response: ControlResponse = serde_json::from_slice(legacy).unwrap();

@@ -1394,3 +1394,35 @@ fn stats_control_response_preserves_client_and_endpoint_metadata() {
     assert_eq!(peer.rx_bytes, 5678);
     assert_eq!(peer.handshake_age_secs, Some(12));
 }
+
+
+#[test]
+fn runtime_control_errors_preserve_stable_categories() {
+    let cases = [
+        (
+            RuntimeError::Configuration("bad config".to_owned()),
+            ControlErrorKind::Configuration,
+        ),
+        (
+            RuntimeError::AlreadyRunning("instance lock".to_owned()),
+            ControlErrorKind::Conflict,
+        ),
+        (
+            RuntimeError::FatalTransition("rollback failed".to_owned()),
+            ControlErrorKind::Fatal,
+        ),
+        (
+            RuntimeError::Control("socket unavailable".to_owned()),
+            ControlErrorKind::Unavailable,
+        ),
+        (
+            RuntimeError::Backend(crate::backend::BackendError::new("backend failed")),
+            ControlErrorKind::Internal,
+        ),
+    ];
+
+    for (error, expected_kind) in cases {
+        let control_error = runtime_control_error(error);
+        assert_eq!(control_error.kind, expected_kind);
+    }
+}

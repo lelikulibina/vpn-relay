@@ -321,6 +321,28 @@ mod tests {
     }
 
     #[test]
+    fn client_accepts_legacy_error_response_without_error_kind() {
+        let path = socket_path("legacy-client");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            stream.read_to_end(&mut request).unwrap();
+            let request: ControlRequest = serde_json::from_slice(&request).unwrap();
+            assert_eq!(request, ControlRequest::GetStats);
+            stream
+                .write_all(br#"{"ok":false,"error":"legacy rejected","stats":null}"#)
+                .unwrap();
+        });
+
+        let error = UnixClient::send(&path, ControlRequest::GetStats).unwrap_err();
+        assert_eq!(error.kind, ControlErrorKind::Internal);
+        assert_eq!(error.message(), "legacy rejected");
+        server.join().unwrap();
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn oversized_request_is_rejected_without_dispatch() {
         let path = socket_path("oversized");
         let mut transport = UnixTransport::bind(path.clone()).unwrap();

@@ -444,7 +444,7 @@ fn runtime_control_error(error: RuntimeError) -> ControlError {
         RuntimeError::Configuration(_) => ControlErrorKind::Configuration,
         RuntimeError::AlreadyRunning(_) => ControlErrorKind::Conflict,
         RuntimeError::FatalTransition(_) => ControlErrorKind::Fatal,
-        RuntimeError::Control(_) => ControlErrorKind::InvalidRequest,
+        RuntimeError::Control(_) => ControlErrorKind::Unavailable,
         _ => ControlErrorKind::Internal,
     };
     ControlError::new(kind, error.to_string())
