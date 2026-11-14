@@ -229,7 +229,9 @@ fn validate_response(
 
     if response.ok {
         if response.error.is_some() || response.error_kind.is_some() {
-            return Err(invalid("daemon returned a success response with error fields"));
+            return Err(invalid(
+                "daemon returned a success response with error fields",
+            ));
         }
         match request {
             ControlRequest::GetStats if response.stats.is_none() => {
@@ -386,14 +388,18 @@ mod tests {
             error_kind: None,
         };
         assert_eq!(
-            validate_response(&request, &response).unwrap_err().message(),
+            validate_response(&request, &response)
+                .unwrap_err()
+                .message(),
             "daemon returned no statistics"
         );
     }
 
     #[test]
     fn response_validation_rejects_stats_for_mutation_and_failure() {
-        let mutation = ControlRequest::ReloadConfig { toml: String::new() };
+        let mutation = ControlRequest::ReloadConfig {
+            toml: String::new(),
+        };
         let response = ControlResponse {
             ok: true,
             error: None,
@@ -401,7 +407,9 @@ mod tests {
             error_kind: None,
         };
         assert_eq!(
-            validate_response(&mutation, &response).unwrap_err().message(),
+            validate_response(&mutation, &response)
+                .unwrap_err()
+                .message(),
             "daemon returned unexpected statistics"
         );
 
@@ -444,9 +452,12 @@ mod tests {
             error_kind: None,
         };
         assert!(validate_response(
-            &ControlRequest::ReloadConfig { toml: String::new() },
+            &ControlRequest::ReloadConfig {
+                toml: String::new()
+            },
             &mutation_success
-        ).is_ok());
+        )
+        .is_ok());
     }
 
     #[test]
