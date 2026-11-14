@@ -3,8 +3,8 @@ use crate::routing::{RoutingPlan, FIRST_IP_RULE_PRIORITY, FIRST_ROUTING_TABLE};
 mod exec;
 mod nft;
 pub use exec::run_ip;
-pub use nft::{apply_nft, remove_nft};
 use exec::{output, run};
+pub use nft::{apply_nft, remove_nft};
 
 // Reserved iproute2 protocol tag identifying resources owned by vpn-relay.
 const ROUTING_PROTOCOL: &str = "242";
