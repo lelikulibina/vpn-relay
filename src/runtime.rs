@@ -5,7 +5,7 @@ use crate::backend::{
 use crate::config::{Config, PeerConfig};
 use crate::control::{
     ControlApi, ControlError, ControlRequest, ControlResponse, ImportConfigRequest,
-    ReloadConfigRequest,
+    ReloadConfigMode, ReloadConfigRequest,
 };
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
@@ -973,7 +973,20 @@ impl Runtime {
     /// Send a complete TOML configuration to the running daemon for validation
     /// and transactional application.
     pub fn request_config_reload(toml: String) -> Result<(), RuntimeError> {
-        Self::send_control_request(ControlRequest::ReloadConfig { toml }).map(|_| ())
+        Self::send_control_request(ControlRequest::ReloadConfig {\n            toml,\n            mode: ReloadConfigMode::Full,\n        })\n        .map(|_| ())
+    }
+
+    /// Replace only the peer set of one interface, preserving the legacy
+    /// semantics while using the reload_config application operation.
+    pub fn request_peer_replacement(
+        interface: String,
+        toml: String,
+    ) -> Result<(), RuntimeError> {
+        Self::send_control_request(ControlRequest::ReloadConfig {
+            toml,
+            mode: ReloadConfigMode::ReplacePeers { interface },
+        })
+        .map(|_| ())
     }
 
     /// Ask the daemon to import an interface into its active configuration.
@@ -1049,8 +1062,22 @@ impl Runtime {
 
 impl ControlApi for Runtime {
     fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError> {
-        let candidate = Config::parse_toml(&request.toml)
+        let parsed = Config::parse_toml(&request.toml)
             .map_err(|error| ControlError::new(error.to_string()))?;
+        let candidate = match request.mode {
+            ReloadConfigMode::Full => parsed,
+            ReloadConfigMode::ReplacePeers { interface } => {
+                let imported = parsed.interfaces.get(&interface).ok_or_else(|| {
+                    ControlError::new(format!("interface '{interface}' is missing from supplied configuration"))
+                })?;
+                let mut candidate = self.config.clone();
+                let target = candidate.interfaces.get_mut(&interface).ok_or_else(|| {
+                    ControlError::new(format!("unknown interface '{interface}'"))
+                })?;
+                target.peers = imported.peers.clone();
+                candidate
+            }
+        };
         Runtime::reload_config(self, candidate)
             .map_err(|error| ControlError::new(error.to_string()))
     }
