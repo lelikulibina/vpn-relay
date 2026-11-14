@@ -2096,7 +2096,7 @@ mod tests {
                 toml: "[interfaces.wg0]".to_owned(),
             },
             ControlRequest::ImportConfig {
-                source: "[Interface]\\nPrivateKey = test\\nAddress = 10.0.0.1/24".to_owned(),
+                source: "[Interface]\nPrivateKey = test\nAddress = 10.0.0.1/24".to_owned(),
                 interface: "wg0".to_owned(),
                 replace: true,
             },
@@ -2106,15 +2106,15 @@ mod tests {
             let encoded = serde_json::to_vec(request).unwrap();
             assert!(
                 String::from_utf8_lossy(&encoded)
-                    .contains(&format!("\\"operation\\":\\"{operation}\\""))
+                    .contains(&format!("\"operation\":\"{operation}\""))
             );
             assert_eq!(
                 serde_json::from_slice::<ControlRequest>(&encoded).unwrap(),
                 *request
             );
         }
-        assert!(serde_json::from_slice::<ControlRequest>(br#"{\\"operation\\":\\"replace_peers\\"}"#).is_err());
-        assert!(serde_json::from_slice::<ControlRequest>(br#"{\\"operation\\":\\"unknown\\"}"#).is_err());
+        assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"replace_peers"}"#).is_err());
+        assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"unknown"}"#).is_err());
     }
 
     #[test]
