@@ -1,4 +1,6 @@
 use super::*;
+use std::os::unix::fs::PermissionsExt;
+use std::os::unix::net::UnixListener;
 
 #[test]
 fn unmanaged_forwarding_treats_any_nonzero_value_as_enabled() {

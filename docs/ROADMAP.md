@@ -8,7 +8,7 @@
 |------|-----------|--------|
 | R0 | Анализ проекта, этот план | выполнен |
 | P0 | Переработка тестовой системы и CI | выполнен; baseline и все 9 CI jobs подтверждены |
-| R1 | Модульное деление крупных файлов без изменения поведения | выполняется; CLI, config, Linux и routing разделены; runtime: тесты, lock, durable conntrack state, forwarding и reload transactions вынесены |
+| R1 | Модульное деление крупных файлов без изменения поведения | выполняется; CLI, config, Linux и routing разделены; runtime: тесты, lock, durable conntrack state, forwarding, reload transactions и control socket lifecycle вынесены |
 | R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | запланирован |
 | R3 | Перенос nftables-логики на крейт `nftables` | запланирован |
 | R4 | Дальнейшие улучшения (см. «Вне текущего рефакторинга») | идеи |
