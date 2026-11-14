@@ -144,27 +144,6 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         yes,
     } = options;
 
-    let control_operations = check_only as usize
-        + stats_requested as usize
-        + reload_config_requested as usize
-        + replace_peers_interface.is_some() as usize
-        + import_args.is_some() as usize;
-    if control_operations > 1 {
-        return Err(
-            "--check, --stats, --reload, --replace-peers and --import are mutually exclusive"
-                .into(),
-        );
-    }
-    if background && control_operations != 0 {
-        return Err("--background can only be used when starting the daemon".into());
-    }
-    if log_enabled && control_operations != 0 {
-        return Err("--log can only be used when starting the daemon".into());
-    }
-    if yes && import_args.is_none() {
-        return Err("--yes can only be used with --import".into());
-    }
-
     if stats_requested {
         let stats = Runtime::request_stats()?;
         print_stats(&stats);
@@ -518,6 +497,16 @@ mod tests {
             parse_args(["-b"].into_iter().map(str::to_owned)).unwrap()
         else { panic!("expected options") };
         assert!(options.background);
+    }
+
+    #[test]
+    fn cli_parser_accepts_stats_and_rejects_missing_import_arguments() {
+        let ParseResult::Options(options) =
+            parse_args(["--stats"].into_iter().map(str::to_owned)).unwrap()
+        else { panic!("expected options") };
+        assert!(options.stats_requested);
+        assert!(parse_args(["--import"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("source .conf path"));
     }
 
     #[test]
