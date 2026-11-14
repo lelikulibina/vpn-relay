@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-modular-refactor
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}-nft-json
   cancel-in-progress: true
 
 jobs:
