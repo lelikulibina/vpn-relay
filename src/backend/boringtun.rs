@@ -270,6 +270,7 @@ match parsed.host {
     EndpointHost::Dns(host) => resolve_ipv4_domain(&host, parsed.port).map_err(|error| {
         BackendError::new(format!("failed to resolve IPv4 endpoint {value}: {error}"))
     }),
+    }
 }
 
 #[cfg(test)]
