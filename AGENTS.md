@@ -59,7 +59,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
 - `src/routing.rs` и `src/routing/` — backend-independent routing plan: `mod.rs` строит egress resources/routing decisions и команды iproute2; `marks.rs` отвечает за durable conntrack decision marks; `nft_text.rs` генерирует текущий nftables script; `tests.rs` содержит routing unit tests. Генератор остаётся чистым и не применяет правила.
 - `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
-- `src/runtime.rs` — orchestration и lifecycle: instance lock, Unix control socket, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
+- `src/runtime.rs` — orchestration и lifecycle: Unix control socket, startup/shutdown, snapshots/stats, signal handling; runtime unit tests находятся в `src/runtime/tests.rs`. Выделение lock/state/forwarding/reload — оставшаяся часть R1.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
 
@@ -199,7 +199,7 @@ cargo test --locked --all-targets
 - `config.rs`: parsing, schema validation, reload compatibility, marks, CIDRs, firewall config;
 - `routing.rs`: nft script, selectors, NAT, conntrack marks, routing plans;
 - `linux.rs`: ownership detection, install/rollback failure matrices, rtnetlink parsing, identity checks;
-- `runtime.rs`: lock/socket/state security, durable journal, forwarding restore, reload rollback;
+- `runtime/tests.rs`: lock/socket/state security, durable journal, forwarding restore, reload rollback;
 - `import.rs`: WG/AWG parsing, warnings, atomic replacement;
 - `backend/boringtun.rs`: endpoint preflight and peer parameter conversion;
 - `main.rs`: formatting counters and handshake age.
