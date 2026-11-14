@@ -2,7 +2,7 @@
 use vpn_relay::InterfaceStats;
 
 #[cfg(target_os = "linux")]
-fn print_stats(interfaces: &[InterfaceStats]) {
+pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
     if interfaces.is_empty() {
         println!("Нет настроенных туннельных интерфейсов.");
         return;

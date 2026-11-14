@@ -353,4 +353,3 @@ fn close_extra_fds(keep_fd: libc::c_int) {
         }
     }
 }
-
