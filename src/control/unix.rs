@@ -11,6 +11,9 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+const MAX_REQUEST_SIZE: usize = 1024 * 1024;
+const MAX_RESPONSE_SIZE: usize = 4 * 1024 * 1024;
+
 pub(crate) struct ControlSocket {
     listener: UnixListener,
     path: PathBuf,
@@ -162,10 +165,10 @@ impl UnixTransport {
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let mut payload = Vec::new();
         let response = match (&mut stream)
-            .take(1024 * 1024 + 1)
+            .take(MAX_REQUEST_SIZE + 1)
             .read_to_end(&mut payload)
         {
-            Ok(_) if payload.len() > 1024 * 1024 => {
+            Ok(_) if payload.len() > MAX_REQUEST_SIZE => {
                 dispatch::invalid_request("request exceeds 1 MiB limit")
             }
             Ok(_) => match serde_json::from_slice::<ControlRequest>(&payload) {
@@ -228,16 +231,31 @@ impl UnixClient {
         stream
             .set_read_timeout(Some(Duration::from_secs(300)))
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
-        serde_json::to_writer(&mut stream, &request)
+        let payload = serde_json::to_vec(&request)
             .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
+        if payload.len() > MAX_REQUEST_SIZE {
+            return Err(ControlError::new(
+                ControlErrorKind::InvalidRequest,
+                "request exceeds 1 MiB limit",
+            ));
+        }
+        stream
+            .write_all(&payload)
+            .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         stream
             .shutdown(std::net::Shutdown::Write)
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         let mut response = Vec::new();
         (&mut stream)
-            .take(4 * 1024 * 1024)
+            .take(MAX_RESPONSE_SIZE as u64 + 1)
             .read_to_end(&mut response)
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
+        if response.len() > MAX_RESPONSE_SIZE {
+            return Err(ControlError::new(
+                ControlErrorKind::Internal,
+                "daemon response exceeds 4 MiB limit",
+            ));
+        }
         let response: ControlResponse = serde_json::from_slice(&response)
             .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
         if response.ok {
@@ -343,13 +361,50 @@ mod tests {
     }
 
     #[test]
+    fn client_rejects_oversized_request_before_connecting() {
+        let path = socket_path("client-oversized-request");
+        let error = UnixClient::send(
+            &path,
+            ControlRequest::ReloadConfig {
+                toml: "x".repeat(MAX_REQUEST_SIZE),
+            },
+        )
+        .unwrap_err();
+
+        assert_eq!(error.kind, ControlErrorKind::InvalidRequest);
+        assert_eq!(error.message(), "request exceeds 1 MiB limit");
+    }
+
+    #[test]
+    fn client_rejects_oversized_response() {
+        let path = socket_path("client-oversized-response");
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut request = Vec::new();
+            stream.read_to_end(&mut request).unwrap();
+            let request: ControlRequest = serde_json::from_slice(&request).unwrap();
+            assert_eq!(request, ControlRequest::GetStats);
+            stream
+                .write_all(&vec![b' '; MAX_RESPONSE_SIZE + 1])
+                .unwrap();
+        });
+
+        let error = UnixClient::send(&path, ControlRequest::GetStats).unwrap_err();
+        assert_eq!(error.kind, ControlErrorKind::Internal);
+        assert_eq!(error.message(), "daemon response exceeds 4 MiB limit");
+        server.join().unwrap();
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn oversized_request_is_rejected_without_dispatch() {
         let path = socket_path("oversized");
         let mut transport = UnixTransport::bind(path.clone()).unwrap();
         let client = UnixStream::connect(&path).unwrap();
         let client = std::thread::spawn(move || {
             let mut client = client;
-            client.write_all(&vec![b' '; 1024 * 1024 + 1]).unwrap();
+            client.write_all(&vec![b' '; MAX_REQUEST_SIZE + 1]).unwrap();
             client.shutdown(std::net::Shutdown::Write).unwrap();
 
             let mut response = Vec::new();
