@@ -75,4 +75,3 @@ pub(super) fn rollback_peer_replacements(
     }
     failures
 }
-
