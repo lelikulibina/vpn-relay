@@ -5,8 +5,8 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 mod exec;
-use exec::{output, run};
 pub use exec::run_ip;
+use exec::{output, run};
 
 // Reserved iproute2 protocol tag identifying resources owned by vpn-relay.
 const ROUTING_PROTOCOL: &str = "242";
