@@ -3,6 +3,8 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
+use crate::control::{ControlRequest, ControlResponse};
+pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
 use std::fs::{self, File, OpenOptions};
@@ -365,43 +367,6 @@ struct ForwardingStateFile {
     version: u32,
     namespace_inode: u64,
     state: ForwardingState,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq)]
-#[serde(tag = "operation", rename_all = "snake_case")]
-enum ControlRequest {
-    GetStats,
-    ReplacePeers {
-        interface: String,
-        peers: Vec<PeerConfig>,
-    },
-    ReloadConfig {
-        toml: String,
-    },
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct InterfaceStats {
-    pub name: String,
-    pub peers: Vec<PeerStats>,
-}
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub struct PeerStats {
-    pub public_key: String,
-    pub client_ips: Vec<String>,
-    pub endpoint: Option<std::net::SocketAddr>,
-    pub tx_bytes: u64,
-    pub rx_bytes: u64,
-    pub handshake_age_secs: Option<u64>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize)]
-struct ControlResponse {
-    ok: bool,
-    error: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    stats: Option<Vec<InterfaceStats>>,
 }
 
 struct ControlSocket {
