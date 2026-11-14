@@ -11,7 +11,7 @@
 - nftables INPUT/OUTPUT/FORWARD isolation с fail-closed поведением и привязкой правил к identity управляемых интерфейсов.
 - NAT: без трансляции, masquerade и статический SNAT.
 - Conntrack decision tracking и отдельные socket fwmarks для внешнего UDP-трафика WG/AWG.
-- Runtime reload routing, firewall, NAT и peer configuration; отдельная операция замены peer set.
+- Runtime reload routing, firewall, NAT и peer configuration; peer-only replacement поддерживается режимом `reload_config`.
 - Peer lifecycle, AllowedIPs ownership/handoff, durable forwarding journal и восстановление после SIGKILL.
 - Управление IPv4 forwarding отдельных интерфейсов через rtnetlink с проверкой ifindex.
 - Rootful Podman deployment в отдельном network namespace.
@@ -71,6 +71,8 @@ sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --import wg0.c
 Для автоматической замены уже существующего интерфейса без интерактивного подтверждения добавьте --yes.
 
 ## Конфигурация и архитектура
+
+CLI и daemon control разделены: `src/cli.rs` отвечает за аргументы и пользовательский вывод, `src/control.rs` задаёт три transport-independent операции (`reload_config`, `get_stats`, `import_config`), а `src/control/unix.rs` реализует Unix Domain Socket transport. Импорт в работающий daemon принимает содержимое WG/AWG профиля; обычный `--import` сохраняет возможность офлайн-изменения конфигурационного файла.
 
 Полный пример поддерживаемой конфигурации — [vpn-relay.example.toml](vpn-relay.example.toml). Отдельная копия в examples/ удалена, чтобы не поддерживать два расходящихся источника истины.
 
