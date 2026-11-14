@@ -328,6 +328,7 @@ timeout --signal=KILL 10s ip netns exec "$NS" env PATH="$TMP/fail-interface-and-
 startup_nft_cleanup_status=$?
 set -e
 echo "[vpn-relay-netns-test] startup nftables-cleanup scenario exited with status $startup_nft_cleanup_status" >&2
+ip netns exec "$NS" nft -j list table inet vpn_relay_it >&2 || true
 if [[ $startup_nft_cleanup_status -eq 124 || $startup_nft_cleanup_status -eq 137 ]]; then
     fail "daemon hung during startup rollback after injected nftables deletion failure"
 fi
