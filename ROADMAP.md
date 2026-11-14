@@ -33,7 +33,7 @@
 - [x] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [x] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
 - [x] Проверить baseline CI: commit `cff0e57747fc0d4238ecadb3519fe9f55ad41725` прошёл GitHub Actions run `43540974390` (success). Локальный запуск из текущей среды пока не выполнен.
-- [ ] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback.
+- [x] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback по исходной реализации, invariant tests и namespace packet-level regression сценариям.
 
 ### Прогресс текущей ветки (2026-11-14)
 
@@ -142,7 +142,7 @@
 - [x] Перенести общую логику операций в `ControlApi` implementation для Runtime; транспорт только вызывает API.
 - [x] Сохранить Unix Domain Socket как транспорт поверх Control API.
 - [x] Выделить Unix server/client в `src/control/unix.rs`; CLI использует client через Runtime.
-- [ ] Проверить необходимость protocol versioning; сохранены tagged JSON requests, лимит 1 MiB, read/write timeout и ошибки malformed/unknown requests. Version field не вводился, чтобы не ломать существующий wire protocol.
+- [x] Проверить необходимость protocol versioning: сохранены tagged JSON requests, лимит 1 MiB, read/write timeout и ошибки malformed/unknown requests. Version field не вводился, чтобы не ломать существующий wire protocol; versioning не требуется для текущего локального транспорта.
 - [x] Сохранить существующие socket ownership, permissions, anti-symlink/replacement safeguards и namespace isolation.
 - [x] Проверить конкурентные запросы, shutdown transport и ошибки на уровнях API и транспорта.
 - [x] Legacy peer replacement сохранён как `ReloadConfigMode::ReplacePeers` внутри `reload_config`; отдельная операция не экспонируется.
