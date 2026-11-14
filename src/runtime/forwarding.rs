@@ -303,7 +303,10 @@ pub(super) fn interface_forwarding_sysctl_key(name: &str) -> Result<String, Runt
     Ok(format!("net.ipv4.conf.{name}.forwarding"))
 }
 
-pub(super) fn read_forwarding_state_value(state: &ForwardingState, key: &str) -> Result<String, RuntimeError> {
+pub(super) fn read_forwarding_state_value(
+    state: &ForwardingState,
+    key: &str,
+) -> Result<String, RuntimeError> {
     for entry in &state.interfaces {
         if key == interface_forwarding_sysctl_key(&entry.name)? {
             let enabled = linux::ipv4_interface_forwarding(entry.ifindex)
@@ -623,7 +626,10 @@ pub(super) fn restore_forwarding_state_with_mode_and_verify(
     }
 }
 
-pub(super) fn recover_forwarding_state(path: &Path, namespace_inode: u64) -> Result<(), RuntimeError> {
+pub(super) fn recover_forwarding_state(
+    path: &Path,
+    namespace_inode: u64,
+) -> Result<(), RuntimeError> {
     let Some(state) = load_forwarding_state(path, namespace_inode)? else {
         return Ok(());
     };
