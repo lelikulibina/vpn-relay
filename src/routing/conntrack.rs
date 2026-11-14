@@ -2,7 +2,7 @@
 
 use super::{RoutingDecision, RoutingPlan};
 
-const FIRST_CONNTRACK_MARK: u32 = 0x5000_0000;
+pub(super) const FIRST_CONNTRACK_MARK: u32 = 0x5000_0000;
 const LEGACY_CONNTRACK_MARK: u32 = 0x4000_0000;
 
 /// Assign decision marks without reusing an ID that may still exist in

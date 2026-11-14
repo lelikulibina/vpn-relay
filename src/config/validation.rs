@@ -295,7 +295,7 @@ fn parse_prefix(value: &str, field: &str) -> Result<(Ipv4Addr, u8), ConfigError>
     Ok((address, prefix))
 }
 
-fn validate_interface_name(name: &str) -> Result<(), ConfigError> {
+pub(super) fn validate_interface_name(name: &str) -> Result<(), ConfigError> {
     // BoringTun interprets a numeric Linux interface name as an inherited
     // file descriptor. vpn-relay owns its TUN descriptors and must not accept
     // this alternate constructor mode from configuration.
