@@ -75,7 +75,11 @@ pub(super) fn build_link_message(
     Ok(message)
 }
 
-pub(super) fn netlink_extended_ack(response: &[u8], offset: usize, length: usize) -> Option<String> {
+pub(super) fn netlink_extended_ack(
+    response: &[u8],
+    offset: usize,
+    length: usize,
+) -> Option<String> {
     // NLMSG_ERROR contains the outer header, errno, and the original
     // nlmsghdr before any optional extended-ACK attributes.
     let end = offset.checked_add(length)?;
@@ -290,7 +294,10 @@ pub(super) fn netlink_request(
     }
 }
 
-pub(super) fn parse_link_ipv4_forwarding(response: &[u8], expected_ifindex: u32) -> Result<bool, LinuxError> {
+pub(super) fn parse_link_ipv4_forwarding(
+    response: &[u8],
+    expected_ifindex: u32,
+) -> Result<bool, LinuxError> {
     fn attributes(mut bytes: &[u8]) -> Result<Vec<(u16, &[u8])>, LinuxError> {
         let mut result = Vec::new();
         while !bytes.is_empty() {
