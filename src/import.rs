@@ -1,7 +1,7 @@
 //! Import standard WireGuard and AmneziaWG INI configurations.
-use crate::config::{Config, TunnelType};
 #[cfg(test)]
 use crate::config::PersistentKeepaliveConfig;
+use crate::config::{Config, TunnelType};
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
@@ -29,7 +29,6 @@ pub struct ImportReport {
     pub warnings: Vec<String>,
     pub replaced: bool,
 }
-
 
 pub fn interface_exists(config_path: &Path, name: &str) -> Result<bool, ImportError> {
     if !config_path.exists() {
@@ -173,7 +172,6 @@ fn atomic_write(path: &Path, contents: &[u8]) -> Result<(), ImportError> {
     }
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {
