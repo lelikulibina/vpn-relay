@@ -1,6 +1,7 @@
 //! Durable forwarding state and sysctl recovery for the Linux runtime.
 
 use super::{ForwardingState, ForwardingStateFile, InterfaceForwardingState, RuntimeError};
+use crate::linux;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
