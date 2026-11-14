@@ -28,12 +28,21 @@
 - [x] Зафиксировать исходный commit и состояние рабочей ветки: `daemon-improvements` на `cff0e57747fc0d4238ecadb3519fe9f55ad41725`; рабочая ветка создана отдельно.
 - [x] Изучить `AGENTS.md`, README и NFTables documentation; первично изучены основные исходники. Детальный аудит каждого затрагиваемого участка продолжается перед соответствующим этапом.
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
-- [ ] Инвентаризировать unit-, integration- и shell-тесты; связать тесты с проверяемыми инвариантами.
+- [x] Инвентаризировать unit-, integration- и shell-тесты: 180 inline unit tests в Rust-модулях и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
 - [x] Проверить текущие CLI и control socket protocol: `get_stats`, `reload_config`, `replace_peers`; CLI-потребители найдены в `main.rs`. Решение по сохранению peer replacement ещё требует отдельного проектирования.
 - [ ] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [ ] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
 - [x] Проверить baseline CI: commit `cff0e57747fc0d4238ecadb3519fe9f55ad41725` прошёл GitHub Actions run `43540974390` (success). Локальный запуск из текущей среды пока не выполнен.
 - [ ] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback.
+
+### Первичные результаты аудита
+
+- В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
+- Ownership текущей nft table опирается на table-level comment `managed by vpn-relay`; это часть защитной модели и должно сохраниться.
+- Изучена документация `nftables` 0.6.3: crate моделирует JSON API и применяет ruleset через helper, который вызывает исполняемый `nft`. В типе `schema::Table` отсутствует поле table comment, поэтому перед миграцией нужно отдельно решить, как сохранить ownership marker без дублирования schema. См. [crate docs](https://docs.rs/nftables/latest/nftables/) и [apply_ruleset_raw](https://docs.rs/nftables/latest/nftables/helper/fn.apply_ruleset_raw.html).
+- Текущие control operations: `get_stats`, `reload_config`, `replace_peers`. Последнюю нельзя удалять до отдельного решения о сохранении пользовательского сценария.
+- Первичная инвентаризация: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2. Тесты пока встроены в исходные модули; при переносе требуется сохранить приватный доступ и все assertions.
+
 
 ## Этап 1. Умеренная декомпозиция Configuration и Import
 
@@ -165,4 +174,4 @@
 
 | Дата | Этап | Результат | Commit / CI |
 |---|---|---|---|
-| 2026-11-14 | Создание плана | ROADMAP добавлен в рабочую ветку | `57fd65f` |\n| 2026-11-14 | Control protocol extraction | Вынесены wire DTO и типы статистики из `runtime.rs` в `control.rs`; формат существующего протокола сохранён | `794f4f7` |\n| 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки | ожидается CI |
+| 2026-11-14 | Создание плана | ROADMAP добавлен в рабочую ветку | `57fd65f` |\n| 2026-11-14 | Control protocol extraction | Вынесены wire DTO и типы статистики из `runtime.rs` в `control.rs`; формат существующего протокола сохранён | `794f4f7` |\n| 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки; quality, kernel compatibility и Podman прошли, network namespace routing/firewall/NAT прошёл; WG/AWG/multi-uplink ещё выполняются | [run 43547350227](https://github.com/lelikulibina/vpn-relay/actions/runs/43547350227) |\n| 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |
