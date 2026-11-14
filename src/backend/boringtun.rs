@@ -274,3 +274,4 @@ match parsed.host {
 
 #[cfg(test)]
 mod tests;
+
