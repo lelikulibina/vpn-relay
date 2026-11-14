@@ -43,6 +43,14 @@ jobs:
         run: cargo build --locked --release
       - name: CLI help smoke test
         run: cargo run --locked -- --help
+      - name: CLI error exit-code smoke test
+        run: |
+          set +e
+          cargo run --locked -- --definitely-unknown-option >/tmp/vpn-relay-cli-error.log 2>&1
+          status=$?
+          set -e
+          test "$status" -eq 1
+          grep -F "unknown argument: --definitely-unknown-option" /tmp/vpn-relay-cli-error.log
   kernel-compatibility:
     name: Kernel compatibility (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

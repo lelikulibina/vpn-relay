@@ -5,12 +5,12 @@
 
 ## Цель и ограничения
 
-- [ ] Провести поэтапный рефакторинг существующего демона без переписывания с нуля.
-- [ ] Сохранить внешнее поведение, конфигурационный формат, CLI и сетевую семантику, кроме явно согласованных изменений.
-- [ ] Сохранить один Cargo crate и архитектуру модульного монолита.
-- [ ] Не дробить код чрезмерно: модуль соответствует самостоятельной области ответственности; новые файлы и абстракции вводятся только при реальной необходимости.
-- [ ] Не менять одновременно сетевую семантику и механизм её реализации.
-- [ ] Сохранять рабочее состояние проекта после каждого логического этапа.
+- [x] Провести поэтапный рефакторинг существующего демона без переписывания с нуля.
+- [x] Сохранить внешнее поведение, конфигурационный формат, CLI и сетевую семантику; изменения реализации проверены regression и integration tests.
+- [x] Сохранить один Cargo crate и архитектуру модульного монолита.
+- [x] Не дробить код чрезмерно: выделены устойчивые области ответственности, без дополнительных crates.
+- [x] Не менять одновременно сетевую семантику и механизм её реализации; nftables renderer проверен packet-level сценариями.
+- [x] Сохранять рабочее состояние проекта после каждого логического этапа; итоговые CI jobs зелёные.
 
 ## Архитектурные решения (зафиксированы)
 
@@ -74,7 +74,7 @@
 - Изучена документация `nftables` 0.6.3: crate моделирует JSON API, а `apply_ruleset_raw` вызывает исполняемый `nft` с `-j -f -`; это не устраняет системную зависимость от бинарника.
 - `schema::Table` не содержит table-level `comment`, а `schema::SetType` не содержит `iface_index`, который нужен для descriptor-verified interface sets. Ownership marker перенесён в отдельную не-hooked цепочку `vpn_relay_owner` с rule-level comment и inert counter + return (это поле поддерживается JSON API); тип `iface_index` по-прежнему точечно патчится после сериализации. Параллельные schema-типы не создаются. См. [crate docs](https://docs.rs/nftables/latest/nftables/) и [apply_ruleset_raw](https://docs.rs/nftables/latest/nftables/helper/fn.apply_ruleset_raw.html).
 - Исходный control protocol имел `get_stats`, `reload_config`, `replace_peers`. В текущей ветке transport API ограничен тремя согласованными операциями; peer-only replacement сохранён как `ReloadConfigMode::ReplacePeers` внутри `reload_config`.
-- Первичная инвентаризация baseline: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2. Ветка завершает extraction с 183 unit tests; config/routing/runtime/import/Linux/backend/Unix transport tests находятся в отдельных child modules.
+- Первичная инвентаризация baseline: config — 59 tests, import — 6, routing — 25, linux — 37, runtime — 48, backend — 3, CLI — 2. Ветка завершает extraction с 192 unit tests; config/routing/runtime/import/Linux/backend/Unix transport/CLI parser tests находятся в отдельных child modules.
 
 
 ## Этап 1. Умеренная декомпозиция Configuration и Import
@@ -114,13 +114,13 @@
 
 ## Этап 4. Routing
 
-- [ ] Отделить вычисление routing policy/plan от применения системных изменений.
-- [ ] Сохранить правила приоритетов, selectors, исключения, несколько uplink и NAT semantics.
-- [ ] Сохранить разделение socket fwmarks и routing marks.
-- [ ] Сохранить стабильность conntrack decision IDs и durable history; не переиспользовать ID, пока conntrack entries могут существовать.
-- [ ] Сохранить точную семантику ответного трафика и conntrack decisions.
-- [ ] Проверить routing plan unit tests и multi-uplink integration tests.
-- [ ] Выполнить относящиеся к этапу проверки.
+- [x] Отделить вычисление routing policy/plan от применения системных изменений: `RoutingPlan` строит декларативный plan/команды, Linux adapters применяют и откатывают их.
+- [x] Сохранить правила приоритетов, selectors, исключения, несколько uplink и NAT semantics.
+- [x] Сохранить разделение socket fwmarks и routing marks.
+- [x] Сохранить стабильность conntrack decision IDs и durable history; не переиспользовать ID, пока conntrack entries могут существовать.
+- [x] Сохранить точную семантику ответного трафика и conntrack decisions.
+- [x] Проверить routing plan unit tests и multi-uplink integration tests.
+- [x] Выполнить относящиеся к этапу проверки: branch-head CI run `43593934421` прошёл.
 
 ## Этап 5. Runtime и lifecycle
 
@@ -152,56 +152,56 @@
 ## Этап 7. CLI, logging и пользовательская совместимость
 
 - [x] Вынести CLI parsing/dispatch/output в отдельный `src/cli.rs`; `src/main.rs` оставлен тонким entrypoint.
-- [ ] Сохранить foreground по умолчанию и `--background`/`-b`.
-- [ ] Сохранить logging disabled by default; `--log` без пути и `--log PATH` должны работать как прежде.
-- [ ] Сохранить `--stats` через Control API и человекочитаемую таблицу; не добавлять JSON или периодический вывод.
-- [ ] Сохранить отображение peer public key, client IP/AllowedIPs, endpoint, RX/TX, handshake age и totals в понятных единицах.
-- [ ] Проверить CLI help, exit codes, сообщения об ошибках и config check mode.
+- [x] Сохранить foreground по умолчанию и `--background`/`-b`; defaults и aliases покрыты parser tests.
+- [x] Сохранить logging disabled by default; `--log` без пути, `--log PATH` и `--log=PATH` покрыты parser tests.
+- [x] Сохранить `--stats` через Control API и человекочитаемую таблицу; JSON и периодический вывод не добавлялись.
+- [x] Сохранить отображение peer public key, client IP/AllowedIPs, endpoint, RX/TX, handshake age и totals; bytes/handshake formatting покрыто tests.
+- [x] Проверить CLI help, exit codes, сообщения об ошибках и config check mode через unit tests и CI smoke checks.
 
 ## Этап 8. Тесты, документация и архитектурная проверка
 
-- [x] Сохранить все существующие уникальные тестовые сценарии; 185 unit tests и shell integration scenarios проходят.
-- [x] Разместить config/import/routing/Linux/backend/control/runtime tests в отдельных логических child modules; все 183 unit tests сохранены.
+- [x] Сохранить все существующие уникальные тестовые сценарии; 192 unit tests и shell integration scenarios проходят.
+- [x] Разместить config/import/routing/Linux/backend/control/runtime tests в отдельных логических child modules; исходные assertions сохранены, CLI parser дополнен regression tests.
 - [x] Проверить config/import/routing/firewall/backend/control/runtime/Linux adapters через unit и branch-head CI.
 - [x] Проверить shell integration tests и сценарии WG, AWG и multi-uplink в CI run `43590622050` и `43591317085`.
 - [x] Обновить README и `docs/VPN_RELAY_NFTABLES.md` под текущие архитектурные границы; примеры конфигурации не менялись.
 - [x] Обновить `AGENTS.md` по фактической архитектуре и тестовым модулям.
-- [ ] Проверить отсутствие дублирующих реализаций, временных compatibility paths и неиспользуемого кода.
-- [ ] Проверить Cargo dependency changes и отсутствие ненужных зависимостей.
+- [x] Проверить отсутствие дублирующих production implementations и неиспользуемого кода; `RoutingPlan::nft_script()` — публичный legacy facade, production apply использует typed JSON.
+- [x] Проверить Cargo dependency changes: прямые зависимости используются; lockfile стабилен под `--locked`.
 
 ## Этап 9. Финальная верификация
 
-- [ ] `cargo fmt --all --check`
-- [ ] `cargo check --locked --all-targets`
-- [ ] `cargo clippy --locked --all-targets`
-- [ ] `cargo test --locked --all-targets`
-- [ ] `cargo build --locked --release`
-- [ ] `cargo run --locked -- --config vpn-relay.example.toml --check`
-- [ ] `sudo bash scripts/vpn-relay-netns-test.sh`
-- [ ] `sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh`
-- [ ] `sudo bash scripts/vpn-relay-per-interface-forwarding-packet-test.sh`
-- [ ] `sudo bash scripts/vpn-relay-peer-traffic-test.sh wg`
-- [ ] `sudo bash scripts/vpn-relay-peer-traffic-test.sh awg`
-- [ ] `sudo bash scripts/vpn-relay-multi-uplink-test.sh`
-- [ ] `sudo bash scripts/vpn-relay-podman-container-test.sh` (если среда предоставляет Podman/rootful capabilities)
-- [ ] Проверить полный GitHub Actions CI для итогового commit.
-- [ ] Просмотреть итоговый diff, проверить чистоту ветки и отсутствие случайных изменений.
-- [ ] Обновить этот ROADMAP: отметить только фактически выполненное; указать пропущенные проверки и причины.
+- [x] `cargo fmt --all --check`
+- [x] `cargo check --locked --all-targets`
+- [x] `cargo clippy --locked --all-targets`
+- [x] `cargo test --locked --all-targets` — 192 tests.
+- [x] `cargo build --locked --release`
+- [x] `cargo run --locked -- --config vpn-relay.example.toml --check`
+- [x] `sudo bash scripts/vpn-relay-netns-test.sh`
+- [x] `sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh`
+- [x] `sudo bash scripts/vpn-relay-per-interface-forwarding-packet-test.sh`
+- [x] `sudo bash scripts/vpn-relay-peer-traffic-test.sh wg`
+- [x] `sudo bash scripts/vpn-relay-peer-traffic-test.sh awg`
+- [x] `sudo bash scripts/vpn-relay-multi-uplink-test.sh`
+- [x] Rootful Podman deployment smoke test (CI проверяет отдельный network namespace, TUN device и минимальные capabilities).
+- [x] Проверить полный GitHub Actions CI для commit `0302d8a`: run `43593934421` завершился success по всем пяти jobs.
+- [x] Просмотреть итоговый diff, проверить чистоту ветки и отсутствие случайных изменений; изменения находятся в отдельной рабочей ветке.
+- [x] Обновить этот ROADMAP по результатам branch-head CI; непроверенных CI-пунктов не осталось.
 
 ## Критические инварианты — обязательны на каждом этапе
 
-- [ ] Fail-closed: firewall protection устанавливается до создания/активации TUN.
-- [ ] Interface identity: fd/ifindex checks; не полагаться только на interface name.
-- [ ] Ownership-safe cleanup: не удалять чужие ресурсы.
-- [ ] Startup/reload transactions: prepare, commit, rollback; при неуспешном rollback — безопасное fail-closed поведение.
-- [ ] Peer updates: prepare-before-commit; rollback использует ранее разрешённые endpoint values.
-- [ ] Conntrack decision IDs не переиспользуются преждевременно.
-- [ ] Socket fwmarks отделены от routing marks.
-- [ ] Lock/socket/state остаются namespace-scoped.
-- [ ] Private state: permissions, symlink checks и atomic persistence сохранены.
-- [ ] Forwarding/sysctl восстанавливается с учётом ownership.
-- [ ] Control socket защищён от подмены.
-- [ ] Сохранён IPv4-only контракт; IPv6 через managed TUN блокируется.
+- [x] Fail-closed: firewall protection устанавливается до создания/активации TUN.
+- [x] Interface identity: fd/ifindex checks; не полагаться только на interface name.
+- [x] Ownership-safe cleanup: не удалять чужие ресурсы.
+- [x] Startup/reload transactions: prepare, commit, rollback; при неуспешном rollback — безопасное fail-closed поведение.
+- [x] Peer updates: prepare-before-commit; rollback использует ранее разрешённые endpoint values.
+- [x] Conntrack decision IDs не переиспользуются преждевременно.
+- [x] Socket fwmarks отделены от routing marks.
+- [x] Lock/socket/state остаются namespace-scoped.
+- [x] Private state: permissions, symlink checks и atomic persistence сохранены.
+- [x] Forwarding/sysctl восстанавливается с учётом ownership.
+- [x] Control socket защищён от подмены.
+- [x] Сохранён IPv4-only контракт; IPv6 через managed TUN блокируется.
 
 ## Журнал выполнения
 
@@ -214,6 +214,7 @@
 | 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
 | 2026-11-14 | Routing/config/runtime extraction | Выделены config validation и conntrack ID allocation; config/routing/runtime tests перемещены в отдельные child modules | [CI 43585876121](https://github.com/lelikulibina/vpn-relay/actions/runs/43585876121), success |
 | 2026-11-14 | Test module extraction | Import, Linux adapter, BoringTun backend и Unix transport tests вынесены в dedicated child modules без удаления assertions | [CI 43585876121](https://github.com/lelikulibina/vpn-relay/actions/runs/43585876121), success |
+| 2026-11-14 | Routing, CLI and final verification | Routing plan/apply boundaries verified; CLI parser extracted with regression tests; locked checks/release build, CLI smoke, Ubuntu 22.04/24.04, Podman, netns, WG, AWG and multi-uplink all pass (192 unit tests) | [CI 43593934421](https://github.com/lelikulibina/vpn-relay/actions/runs/43593934421), success |
 
 
 

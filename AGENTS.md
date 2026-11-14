@@ -264,17 +264,17 @@ Release workflow запускается по тегам `vpn-relay-v*`, свер
 
 ## 10. Текущие архитектурные узкие места (наблюдения аудита)
 
-Это не список ошибок datapath, а точки, которые повышают стоимость сопровождения:
-- `runtime.rs` декомпозирован на startup orchestration и отдельные модули control API/socket, lifecycle, reload, peers, state и forwarding; регрессионные тесты остаются в `runtime/tests.rs`.
-- `linux.rs` остаётся общей точкой для process execution, link identity и TUN lifecycle; rtnetlink, nftables и iproute2 вынесены в отдельные adapters.
-- `config.rs` разделяет schema/defaults/reload compatibility от `config/endpoint.rs`, `config/validation.rs` и `config/tests.rs`.
-- `routing.rs` строит plan; conntrack history и nftables JSON generation находятся в `routing/conntrack.rs`, `routing/nft.rs` и `routing/nft_json.rs`.
-- `import.rs` координирует import/merge/validation/atomic persistence; parsing WG/AWG вынесен в `import/parser.rs`.
-- Production code и tests находятся в тех же больших файлах; это удобно для локальных приватных helper tests, но ухудшает навигацию и делает файлы тяжёлыми для ревью.
-- `main.rs` сам реализует CLI parsing, process daemonization, logging setup и presentation logic; эти обязанности можно разделить.
-- Integration shell scripts крупные и сценарно насыщенные. Их размер частично оправдан end-to-end nature, но сценарии/fixtures/assertions можно лучше структурировать.
-- Документация в целом уже содержит существенные детали, но критические invariants распределены между README, nftables doc, comments и tests; AGENTS.md должен служить картой, а не копией этих документов.
+Это не список ошибок datapath, а остаточные зоны, за которыми стоит следить при будущих изменениях:
 
+- `src/cli.rs` объединяет разбор аргументов, dispatch, daemonization, логирование и представление статистики. Парсер выделен в чистую testable функцию; дальнейшее разделение не требуется, пока эти обязанности остаются тесно связанными с одним entrypoint.
+- `src/config.rs` остаётся фасадом TOML schema/defaults/reload compatibility и общих helpers; endpoint parsing, validation и tests вынесены в child modules.
+- `src/routing.rs` формирует декларативный `RoutingPlan`; conntrack history и nftables generation отделены. Применение системных изменений выполняют Linux adapters.
+- `src/linux/policy_routing.rs` и `src/linux/nftables.rs` содержат чувствительную к системной среде логику: ownership verification, transaction/rollback и cleanup. Менять их следует только с namespace-level packet tests.
+- `src/runtime.rs` оставлен orchestration facade; startup/shutdown, reload, control API/socket, peer transactions, forwarding recovery и durable state находятся в child modules.
+- `src/import.rs` координирует import/merge/validation/atomic persistence; parsing WG/AWG вынесен в `src/import/parser.rs`.
+- `RoutingPlan::nft_script()` сохранён как публичный legacy compatibility facade. Production apply использует typed nftables JSON; не возвращать text renderer в системный apply path.
+- Integration shell scripts остаются крупными end-to-end сценариями. Их декомпозиция не должна скрывать namespace lifecycle, реальные packet assertions и failure cleanup.
+- Не выявлено дополнительных crates, дублирующих production adapters или незадействованных прямых Cargo dependencies в рамках текущего аудита.
 ## 11. Правила изменения этого файла
 
 Обновляйте AGENTS.md при:
