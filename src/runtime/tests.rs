@@ -238,10 +238,7 @@ fn control_socket_refuses_to_replace_regular_files() {
         std::process::id()
     ));
     std::fs::write(&path, b"do not replace").unwrap();
-    assert!(matches!(
-        ControlSocket::bind(path.clone()),
-        Err(_)
-    ));
+    assert!(matches!(ControlSocket::bind(path.clone()), Err(_)));
     assert_eq!(std::fs::read(&path).unwrap(), b"do not replace");
     std::fs::remove_file(path).unwrap();
 }
