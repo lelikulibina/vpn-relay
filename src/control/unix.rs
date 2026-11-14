@@ -11,7 +11,7 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-struct ControlSocket {
+pub(crate) struct ControlSocket {
     listener: UnixListener,
     path: PathBuf,
     device: u64,
@@ -19,7 +19,7 @@ struct ControlSocket {
 }
 
 impl ControlSocket {
-    fn bind(path: PathBuf) -> Result<Self, ControlError> {
+    pub(crate) fn bind(path: PathBuf) -> Result<Self, ControlError> {
         if path.exists() {
             match UnixStream::connect(&path) {
                 Ok(_) => {
@@ -55,7 +55,7 @@ impl ControlSocket {
         })
     }
 
-    fn bind_with(
+    pub(crate) fn bind_with(
         path: PathBuf,
         configure: impl FnOnce(&Path, &UnixListener) -> std::io::Result<()>,
     ) -> Result<Self, ControlError> {

@@ -9,9 +9,11 @@ use crate::backend::{
 };
 use crate::config::{Config, PeerConfig};
 use crate::control::{
-    ControlApi, ControlError, ControlErrorKind, ControlRequest, ControlResponse, ControlTransport,
-    InterfaceStats, PeerStats, UnixTransport,
+    ControlApi, ControlError, ControlErrorKind, ControlTransport, UnixTransport,
 };
+#[cfg(test)]
+use crate::control::{ControlRequest, ControlResponse};
+pub use crate::control::{InterfaceStats, PeerStats};
 use crate::control::unix::UnixClient;
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
@@ -19,7 +21,6 @@ use forwarding::*;
 use lock::InstanceLock;
 use reload::*;
 use state::{load_conntrack_mark_history, persist_conntrack_mark_history};
-use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
