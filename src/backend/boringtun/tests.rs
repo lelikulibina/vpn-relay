@@ -64,4 +64,3 @@ fn backend_preflight_resolves_peer_endpoints_before_runtime_setup() {
         vec![Some("192.0.2.10:51820".parse().unwrap())]
     );
 }
-}
