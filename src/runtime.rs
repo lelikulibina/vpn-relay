@@ -963,7 +963,7 @@ impl Runtime {
         }
     }
 
-    /// Send a peer replacement request to the daemon in this network namespace.
+    /// Request live peer and interface statistics from the daemon.
     pub fn request_stats() -> Result<Vec<InterfaceStats>, RuntimeError> {
         Self::send_control_request(ControlRequest::GetStats)?
             .stats
@@ -973,7 +973,10 @@ impl Runtime {
     /// Send a complete TOML configuration to the running daemon for validation
     /// and transactional application.
     pub fn request_config_reload(toml: String) -> Result<(), RuntimeError> {
-        Self::send_control_request(ControlRequest::ReloadConfig {\n            toml,\n            mode: ReloadConfigMode::Full,\n        })\n        .map(|_| ())
+        Self::send_control_request(ControlRequest::ReloadConfig {
+            toml,
+            mode: ReloadConfigMode::Full,
+        })\n        .map(|_| ())
     }
 
     /// Replace only the peer set of one interface, preserving the legacy
@@ -2007,6 +2010,7 @@ mod tests {
             ControlRequest::GetStats,
             ControlRequest::ReloadConfig {
                 toml: "[interfaces.wg0]".to_owned(),
+                mode: ReloadConfigMode::Full,
             },
             ControlRequest::ImportConfig {
                 source: "[Interface]\nPrivateKey = test\nAddress = 10.0.0.1/24".to_owned(),
