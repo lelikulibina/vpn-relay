@@ -1,6 +1,12 @@
 //! Durable conntrack routing-decision state.
 
 use super::RuntimeError;
+use crate::routing::RoutingPlan;
+use std::fs::{self, File, OpenOptions};
+use std::io::Read;
+use std::os::fd::AsRawFd;
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::path::{Path, PathBuf};
 
 pub(super) struct InstanceLock {
     _file: File,
@@ -62,12 +68,6 @@ impl InstanceLock {
     }
 }
 
-use crate::routing::RoutingPlan;
-use std::fs::{self, File, OpenOptions};
-use std::io::Read;
-use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::os::fd::AsRawFd;
-use std::path::{Path, PathBuf};
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
