@@ -9,7 +9,7 @@
 | R0 | Анализ проекта, этот план | выполнен |
 | P0 | Переработка тестовой системы и CI | выполнен; baseline и все 9 CI jobs подтверждены |
 | R1 | Модульное деление крупных файлов без изменения поведения | выполнен; CLI, config, Linux, routing и runtime разделены; control protocol/transport вынесены в R2 |
-| R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполняется; API/dispatch/Unix transport выделены; error mapping и legacy wire compatibility покрыты тестами; client-side request/response limits реализованы и подтверждены полным CI 9/9 (run `43631016831`, HEAD `ce194ee`) |
+| R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполняется; API/dispatch/Unix transport выделены; error mapping, legacy wire compatibility, лимиты и таймауты I/O, bounded response serialization подтверждены CI 9/9 (run `43639346607`, HEAD `aec9031`); продолжается аудит edge cases |
 | R3 | Перенос nftables-логики на крейт `nftables` | запланирован |
 | R4 | Дальнейшие улучшения (см. «Вне текущего рефакторинга») | идеи |
 
@@ -181,7 +181,7 @@ config ◄── все слои (только типы и валидация)
 
 | Исходный файл | Куда |
 |---------------|------|
-| `runtime.rs` | `runtime/mod.rs` (Runtime, start, run, Drop, signals, RuntimeError), `runtime/reload.rs`, `runtime/lock.rs`, `runtime/state.rs`, `runtime/forwarding.rs`, `runtime/tests.rs`; control-код временно остаётся в `runtime/mod.rs` и уходит в R2 |
+| `runtime.rs` | `runtime/mod.rs` (Runtime, start, run, Drop, signals, RuntimeError), `runtime/reload.rs`, `runtime/lock.rs`, `runtime/state.rs`, `runtime/forwarding.rs`, `runtime/tests.rs`; Control API и Unix transport вынесены в `control/` (R2) |
 | `linux.rs` | `linux/{mod,exec,nft,policy,link,netlink}.rs`, `linux/tests.rs` |
 | `config.rs` | `config/{mod,schema,validate,reload,parse}.rs`, `config/tests.rs` |
 | `routing.rs` | `routing/{mod,marks,nft_text}.rs`, `routing/tests.rs` |
@@ -214,7 +214,7 @@ config ◄── все слои (только типы и валидация)
 2. `ControlRequest` / `ControlResponse` — те же serde-типы и тот же JSON (`operation` в snake_case; `ok`, `error`, `stats`). Добавляется только необязательное поле `error_kind` (`invalid_request`, `configuration`, `conflict`, `unavailable`, `fatal`, `internal`) с `skip_serializing_if`, чтобы старые клиенты продолжали работать, а будущий HTTP транспорт мог выбирать статус-коды.
 3. `control::dispatch::handle(api, request) -> ControlResponse` — единственное место, где запрос превращается в вызов `ControlApi` и результат — в ответ.
 4. `ControlTransport` — трейт `poll(&mut self, api: &mut dyn ControlApi)`; Runtime хранит список транспортов и в `run()` временно забирает их (`mem::take`) для опроса, чтобы не конфликтовал заём `self`.
-5. `control::unix` — `UnixTransport` (перенос текущего `ControlSocket`: приватные права, защита от подмены пути, удаление только своего inode, лимит запроса 1 MiB, таймаут чтения) и `UnixClient` (бывший `send_control_request`). `Runtime::request_*` остаются тонкими обёртками для совместимости библиотеки.
+5. `control::unix` — `UnixTransport` (приватные права, защита от подмены пути, удаление только своего inode, лимит запроса 1 MiB, лимит ответа 4 MiB, таймауты чтения/записи по 5 секунд) и `UnixClient` (лимит запроса 1 MiB до connect, лимит ответа 4 MiB, таймаут записи 5 секунд и чтения 300 секунд). Ответ сериализуется через ограниченный writer, не выделяющий буфер сверх лимита. `Runtime::request_*` остаются тонкими обёртками для совместимости библиотеки.
 6. `RuntimeError` → `ControlError` через явное отображение, без потери текста ошибки.
 
 Будущий HTTP транспорт (вне R2, но проект учитывает):

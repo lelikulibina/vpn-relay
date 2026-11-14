@@ -225,10 +225,33 @@ impl ControlTransport for UnixTransport {
     }
 }
 
+struct BoundedResponseWriter {
+    payload: Vec<u8>,
+}
+
+impl Write for BoundedResponseWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if self.payload.len().saturating_add(bytes.len()) > MAX_RESPONSE_SIZE {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "response exceeds 4 MiB limit",
+            ));
+        }
+        self.payload.extend_from_slice(bytes);
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 fn encode_response(response: &ControlResponse) -> Result<Vec<u8>, serde_json::Error> {
-    let payload = serde_json::to_vec(response)?;
-    if payload.len() <= MAX_RESPONSE_SIZE {
-        return Ok(payload);
+    let mut writer = BoundedResponseWriter {
+        payload: Vec::new(),
+    };
+    if serde_json::to_writer(&mut writer, response).is_ok() {
+        return Ok(writer.payload);
     }
 
     serde_json::to_vec(&ControlResponse::failure(ControlError::new(
@@ -515,6 +538,17 @@ mod tests {
 
         assert_eq!(error.kind, ControlErrorKind::InvalidRequest);
         assert_eq!(error.message(), "request exceeds 1 MiB limit");
+    }
+
+    #[test]
+    fn bounded_response_writer_never_exceeds_limit() {
+        let mut writer = BoundedResponseWriter {
+            payload: Vec::new(),
+        };
+        assert_eq!(writer.write(&vec![b'x'; MAX_RESPONSE_SIZE]).unwrap(), MAX_RESPONSE_SIZE);
+        assert_eq!(writer.payload.len(), MAX_RESPONSE_SIZE);
+        assert!(writer.write(b"x").is_err());
+        assert_eq!(writer.payload.len(), MAX_RESPONSE_SIZE);
     }
 
     #[test]
