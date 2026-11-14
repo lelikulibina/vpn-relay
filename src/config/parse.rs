@@ -3,6 +3,7 @@ use base64::Engine as _;
 use super::{invalid, ConfigError};
 use std::net::{Ipv4Addr, SocketAddr};
 use std::str::FromStr;
+
 /// Parsed peer endpoint. DNS names are validated but deliberately not resolved
 /// while loading configuration; resolution belongs to daemon startup/reconnect.
 #[derive(Clone, Debug, Eq, PartialEq)]
