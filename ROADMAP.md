@@ -216,3 +216,4 @@
 | 2026-11-14 | Test module extraction | Import, Linux adapter, BoringTun backend и Unix transport tests вынесены в dedicated child modules без удаления assertions | [CI 43585876121](https://github.com/lelikulibina/vpn-relay/actions/runs/43585876121), success |
 
 
+
