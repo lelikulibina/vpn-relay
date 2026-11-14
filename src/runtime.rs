@@ -20,6 +20,8 @@ use std::fs;
 #[cfg(test)]
 use std::fs::{File, OpenOptions};
 #[cfg(test)]
+use std::io::Write;
+#[cfg(test)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 #[cfg(test)]
 use std::os::unix::net::{UnixListener, UnixStream};
