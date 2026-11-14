@@ -2,7 +2,7 @@ name: vpn-relay CI
 
 on:
   push:
-    branches: [main, daemon-improvements]
+    branches: [main, daemon-improvements, refactor/modular-monolith]
   pull_request:
     branches: [main]
   workflow_dispatch:
