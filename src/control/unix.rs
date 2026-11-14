@@ -165,7 +165,7 @@ impl UnixTransport {
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let mut payload = Vec::new();
         let response = match (&mut stream)
-            .take(MAX_REQUEST_SIZE + 1)
+            .take(MAX_REQUEST_SIZE as u64 + 1)
             .read_to_end(&mut payload)
         {
             Ok(_) if payload.len() > MAX_REQUEST_SIZE => {
@@ -226,11 +226,6 @@ impl UnixClient {
         path: &Path,
         request: ControlRequest,
     ) -> Result<ControlResponse, ControlError> {
-        let mut stream = UnixStream::connect(path)
-            .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
-        stream
-            .set_read_timeout(Some(Duration::from_secs(300)))
-            .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         let payload = serde_json::to_vec(&request)
             .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
         if payload.len() > MAX_REQUEST_SIZE {
@@ -239,6 +234,11 @@ impl UnixClient {
                 "request exceeds 1 MiB limit",
             ));
         }
+        let mut stream = UnixStream::connect(path)
+            .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
+        stream
+            .set_read_timeout(Some(Duration::from_secs(300)))
+            .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         stream
             .write_all(&payload)
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
