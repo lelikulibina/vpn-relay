@@ -324,15 +324,21 @@ mod tests {
     fn oversized_request_is_rejected_without_dispatch() {
         let path = socket_path("oversized");
         let mut transport = UnixTransport::bind(path.clone()).unwrap();
-        let mut client = UnixStream::connect(&path).unwrap();
-        client.write_all(&vec![b' '; 1024 * 1024 + 1]).unwrap();
-        client.shutdown(std::net::Shutdown::Write).unwrap();
+        let client = UnixStream::connect(&path).unwrap();
+        let client = std::thread::spawn(move || {
+            let mut client = client;
+            client.write_all(&vec![b' '; 1024 * 1024 + 1]).unwrap();
+            client.shutdown(std::net::Shutdown::Write).unwrap();
+
+            let mut response = Vec::new();
+            client.read_to_end(&mut response).unwrap();
+            response
+        });
 
         let mut api = MockApi::default();
         transport.poll(&mut api);
 
-        let mut response = Vec::new();
-        client.read_to_end(&mut response).unwrap();
+        let response = client.join().unwrap();
         let response: ControlResponse = serde_json::from_slice(&response).unwrap();
         assert!(!response.ok);
         assert_eq!(response.error_kind, Some(ControlErrorKind::InvalidRequest));
