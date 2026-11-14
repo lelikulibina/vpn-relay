@@ -57,11 +57,13 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/cli.rs` — ручной разбор аргументов, foreground/background, настройка файлового логирования, табличная статистика и CLI dispatch. Операции управления работающим daemon вызывают Unix client через Runtime.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
 - `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
-- `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
+- `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write; import tests.
+- `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
 - `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, генерация nftables script и команд iproute2, unit tests.
 - `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
-- `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; вызывает `ControlApi`.
+- `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client.
+- `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью. Не содержит бизнес-логики; вызывает `ControlApi`.
 - `src/runtime.rs` — orchestration и lifecycle: instance lock, подключение Unix socket к Control API, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
