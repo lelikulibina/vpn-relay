@@ -67,7 +67,7 @@ egress = "awg-uplink"
 
 #[test]
 fn shipped_example_configuration_parses_and_uses_only_supported_fields() {
-    let config = Config::parse_toml(include_str!("../vpn-relay.example.toml")).unwrap();
+    let config = Config::parse_toml(include_str!("../../vpn-relay.example.toml")).unwrap();
     assert_eq!(config.interfaces.len(), 3);
     assert_eq!(config.routing.rules.len(), 3);
     assert_eq!(config.routing.mark_base, 0x8000_0000);
@@ -615,7 +615,7 @@ fn parses_and_validates_a_complete_multi_tunnel_config() {
 
 #[test]
 fn shipped_example_configuration_parses_with_named_sections() {
-    let config = Config::parse_toml(include_str!("../vpn-relay.example.toml")).unwrap();
+    let config = Config::parse_toml(include_str!("../../vpn-relay.example.toml")).unwrap();
     assert!(config.interfaces.contains_key("wg-server"));
     assert_eq!(config.interfaces["wg-server"].peers.len(), 1);
     assert_eq!(config.interfaces["awg-primary"].peers.len(), 1);
