@@ -4,7 +4,6 @@
 //! wire request types and invoke the same `ControlApi` implementation;
 //! application errors and domain results do not depend on Unix sockets.
 
-use crate::config::PeerConfig;
 use crate::import::ImportReport;
 
 /// Error returned by a Control API implementation.
@@ -90,7 +89,3 @@ pub(crate) struct ControlResponse {
     pub(crate) import_report: Option<ImportReport>,
 }
 
-// Kept as a protocol-level conversion helper so the legacy peer replacement
-// CLI can be migrated to a full reload without exposing a fourth API method.
-#[allow(dead_code)]
-fn _peer_config_is_wire_serializable(_: Vec<PeerConfig>) {}
