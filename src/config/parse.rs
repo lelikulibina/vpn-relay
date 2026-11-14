@@ -61,6 +61,7 @@ impl PeerEndpoint {
         })
     }
 }
+
 fn valid_ascii_dns_name(host: &str) -> bool {
     let name = host.strip_suffix('.').unwrap_or(host);
     if name.is_empty() || name.len() > 253 || !name.is_ascii() {
