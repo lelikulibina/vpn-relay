@@ -9,7 +9,7 @@
 | R0 | Анализ проекта, этот план | выполнен |
 | P0 | Переработка тестовой системы и CI | выполнен; baseline и все 9 CI jobs подтверждены |
 | R1 | Модульное деление крупных файлов без изменения поведения | выполнен; CLI, config, Linux, routing и runtime разделены; control protocol/transport вынесены в R2 |
-| R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполняется; API/dispatch/Unix transport выделены; error mapping, legacy wire compatibility, лимиты и таймауты I/O, bounded response serialization подтверждены CI 9/9 (run `43639346607`, HEAD `aec9031`); продолжается аудит edge cases |
+| R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполняется; API/dispatch/Unix transport выделены; error mapping, legacy wire compatibility, лимиты, bounded serialization и edge cases (empty/malformed/truncated request/response, connect failure, read timeout) подтверждены полным CI 9/9 (run `43641558208`, HEAD `ed94bd8`); финальная сверка критериев и документации продолжается |
 | R3 | Перенос nftables-логики на крейт `nftables` | запланирован |
 | R4 | Дальнейшие улучшения (см. «Вне текущего рефакторинга») | идеи |
 
