@@ -7,7 +7,7 @@ mod nftables;
 pub use nftables::{apply_nft, remove_nft};
 mod policy_routing;
 #[cfg(test)]
-use nftables::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
+use nftables::{apply_nft_with, remove_nft_with, table_is_owned};
 pub use policy_routing::{
     allocate_policy_routing_resources, apply_egress_policy_routing, apply_policy_routing,
     remove_egress_policy_routing, remove_policy_routing,
