@@ -1,11 +1,11 @@
 #[cfg(target_os = "linux")]
+use crate::{Config, InterfaceStats, Runtime};
+#[cfg(target_os = "linux")]
 use std::io::Read;
 #[cfg(target_os = "linux")]
 use std::os::fd::FromRawFd;
 #[cfg(target_os = "linux")]
 use std::path::PathBuf;
-#[cfg(target_os = "linux")]
-use crate::{Config, InterfaceStats, Runtime};
 
 #[cfg(target_os = "linux")]
 const DEFAULT_CONFIG: &str = "/etc/vpn-relay/config.toml";
