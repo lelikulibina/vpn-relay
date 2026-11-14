@@ -1014,6 +1014,5 @@ fn hex_key(key: &[u8; 32]) -> String {
     key.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-
 #[cfg(test)]
 mod tests;
