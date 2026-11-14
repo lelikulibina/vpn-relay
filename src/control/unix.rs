@@ -25,25 +25,33 @@ impl ControlSocket {
                 Ok(_) => {
                     return Err(ControlError::new(
                         ControlErrorKind::Conflict,
-                        format!("control socket is already accepting connections: {}", path.display()),
+                        format!(
+                            "control socket is already accepting connections: {}",
+                            path.display()
+                        ),
                     ));
                 }
                 Err(error) if error.kind() == std::io::ErrorKind::ConnectionRefused => {
-                    let metadata = fs::symlink_metadata(&path)
-                        .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
+                    let metadata = fs::symlink_metadata(&path).map_err(|error| {
+                        ControlError::new(ControlErrorKind::Internal, error.to_string())
+                    })?;
                     if !metadata.file_type().is_socket() {
                         return Err(ControlError::new(
                             ControlErrorKind::Conflict,
                             format!("refusing to replace non-socket path {}", path.display()),
                         ));
                     }
-                    fs::remove_file(&path)
-                        .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
+                    fs::remove_file(&path).map_err(|error| {
+                        ControlError::new(ControlErrorKind::Internal, error.to_string())
+                    })?;
                 }
                 Err(error) => {
                     return Err(ControlError::new(
                         ControlErrorKind::Conflict,
-                        format!("cannot inspect existing control socket {}: {error}", path.display()),
+                        format!(
+                            "cannot inspect existing control socket {}: {error}",
+                            path.display()
+                        ),
                     ));
                 }
             }
@@ -66,7 +74,10 @@ impl ControlSocket {
         if !metadata.file_type().is_socket() {
             return Err(ControlError::new(
                 ControlErrorKind::Conflict,
-                format!("control socket path was replaced during bind: {}", path.display()),
+                format!(
+                    "control socket path was replaced during bind: {}",
+                    path.display()
+                ),
             ));
         }
         let device = metadata.dev();
@@ -74,23 +85,38 @@ impl ControlSocket {
         if let Err(error) = configure(&path, &listener) {
             drop(listener);
             remove_owned_socket_path(&path, device, inode);
-            return Err(ControlError::new(ControlErrorKind::Internal, error.to_string()));
+            return Err(ControlError::new(
+                ControlErrorKind::Internal,
+                error.to_string(),
+            ));
         }
         let metadata = match fs::symlink_metadata(&path) {
             Ok(metadata) => metadata,
             Err(error) => {
                 drop(listener);
                 remove_owned_socket_path(&path, device, inode);
-                return Err(ControlError::new(ControlErrorKind::Internal, error.to_string()));
+                return Err(ControlError::new(
+                    ControlErrorKind::Internal,
+                    error.to_string(),
+                ));
             }
         };
-        if !metadata.file_type().is_socket() || metadata.dev() != device || metadata.ino() != inode {
+        if !metadata.file_type().is_socket() || metadata.dev() != device || metadata.ino() != inode
+        {
             return Err(ControlError::new(
                 ControlErrorKind::Conflict,
-                format!("control socket path changed while being configured: {}", path.display()),
+                format!(
+                    "control socket path changed while being configured: {}",
+                    path.display()
+                ),
             ));
         }
-        Ok(Self { listener, path, device, inode })
+        Ok(Self {
+            listener,
+            path,
+            device,
+            inode,
+        })
     }
 }
 
@@ -127,26 +153,39 @@ pub struct UnixTransport {
 
 impl UnixTransport {
     pub fn bind(path: PathBuf) -> Result<Self, ControlError> {
-        Ok(Self { socket: ControlSocket::bind(path)? })
+        Ok(Self {
+            socket: ControlSocket::bind(path)?,
+        })
     }
 
     fn handle_connection(&self, mut stream: UnixStream, api: &mut dyn ControlApi) {
         let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
         let mut payload = Vec::new();
-        let response = match (&mut stream).take(1024 * 1024 + 1).read_to_end(&mut payload) {
+        let response = match (&mut stream)
+            .take(1024 * 1024 + 1)
+            .read_to_end(&mut payload)
+        {
             Ok(_) if payload.len() > 1024 * 1024 => {
                 dispatch::invalid_request("request exceeds 1 MiB limit")
             }
             Ok(_) => match serde_json::from_slice::<ControlRequest>(&payload) {
                 Ok(request) => dispatch::handle(api, request),
-                Err(error) => dispatch::invalid_request(format!("invalid control request: {error}")),
+                Err(error) => {
+                    dispatch::invalid_request(format!("invalid control request: {error}"))
+                },
             },
-            Err(error) => dispatch::invalid_request(format!("failed to read control request: {error}")),
+            Err(error) => {
+                dispatch::invalid_request(format!("failed to read control request: {error}"))
+            },
         };
 
         let write_result = serde_json::to_vec(&response)
             .map_err(|error| error.to_string())
-            .and_then(|payload| stream.write_all(&payload).map_err(|error| error.to_string()));
+            .and_then(|payload| {
+                stream
+                    .write_all(&payload)
+                    .map_err(|error| error.to_string())
+            });
         if let Err(error) = write_result {
             tracing::warn!(%error, "failed to send control response");
         }
@@ -206,7 +245,9 @@ impl UnixClient {
         } else {
             Err(ControlError::new(
                 response.error_kind.unwrap_or(ControlErrorKind::Internal),
-                response.error.unwrap_or_else(|| "daemon rejected request".to_owned()),
+                response
+                    .error
+                    .unwrap_or_else(|| "daemon rejected request".to_owned()),
             ))
         }
     }
@@ -214,7 +255,9 @@ impl UnixClient {
     pub(crate) fn request_stats(path: &Path) -> Result<Vec<InterfaceStats>, ControlError> {
         Self::send(path, ControlRequest::GetStats)?
             .stats
-            .ok_or_else(|| ControlError::new(ControlErrorKind::Internal, "daemon returned no statistics"))
+            .ok_or_else(|| {
+                ControlError::new(ControlErrorKind::Internal, "daemon returned no statistics")
+            })
     }
 
     pub(crate) fn replace_peers(

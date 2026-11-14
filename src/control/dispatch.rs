@@ -3,15 +3,11 @@ use super::api::{ControlApi, ControlError, ControlErrorKind, ControlRequest, Con
 /// Dispatch a decoded request through the transport-independent daemon API.
 pub fn handle(api: &mut dyn ControlApi, request: ControlRequest) -> ControlResponse {
     let result = match request {
-        ControlRequest::GetStats => api
-            .get_stats()
-            .map(|stats| Some(stats)),
-        ControlRequest::ReplacePeers { interface, peers } => api
-            .replace_peers(&interface, peers)
-            .map(|()| None),
-        ControlRequest::ReloadConfig { toml } => api
-            .reload_config(&toml)
-            .map(|()| None),
+        ControlRequest::GetStats => api.get_stats().map(Some),
+        ControlRequest::ReplacePeers { interface, peers } => {
+            api.replace_peers(&interface, peers).map(|()| None)
+        }
+        ControlRequest::ReloadConfig { toml } => api.reload_config(&toml).map(|()| None),
     };
 
     match result {
@@ -21,17 +17,14 @@ pub fn handle(api: &mut dyn ControlApi, request: ControlRequest) -> ControlRespo
 }
 
 pub(crate) fn invalid_request(message: impl Into<String>) -> ControlResponse {
-    ControlResponse::failure(ControlError::new(
-        ControlErrorKind::InvalidRequest,
-        message,
-    ))
+    ControlResponse::failure(ControlError::new(ControlErrorKind::InvalidRequest, message))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::control::api::{ControlErrorKind, InterfaceStats};
     use crate::config::PeerConfig;
+    use crate::control::api::{ControlErrorKind, InterfaceStats};
 
     #[derive(Default)]
     struct MockApi {
@@ -45,7 +38,10 @@ mod tests {
     impl ControlApi for MockApi {
         fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError> {
             if self.fail {
-                Err(ControlError::new(ControlErrorKind::Unavailable, "stats unavailable"))
+                Err(ControlError::new(
+                    ControlErrorKind::Unavailable,
+                    "stats unavailable",
+                ))
             } else {
                 Ok(self.stats.clone())
             }
@@ -57,7 +53,10 @@ mod tests {
             peers: Vec<PeerConfig>,
         ) -> Result<(), ControlError> {
             if self.fail {
-                return Err(ControlError::new(ControlErrorKind::Conflict, "replacement rejected"));
+                return Err(ControlError::new(
+                    ControlErrorKind::Conflict,
+                    "replacement rejected",
+                ));
             }
             self.replaced = Some((interface.to_owned(), peers));
             Ok(())
@@ -65,7 +64,10 @@ mod tests {
 
         fn reload_config(&mut self, toml: &str) -> Result<(), ControlError> {
             if self.fail {
-                return Err(ControlError::new(ControlErrorKind::Configuration, "invalid config"));
+                return Err(ControlError::new(
+                    ControlErrorKind::Configuration,
+                    "invalid config",
+                ));
             }
             self.reloaded = Some(toml.to_owned());
             Ok(())
@@ -79,7 +81,10 @@ mod tests {
     #[test]
     fn dispatches_stats_and_preserves_result() {
         let mut api = MockApi {
-            stats: vec![InterfaceStats { name: "wg0".into(), peers: Vec::new() }],
+            stats: vec![InterfaceStats {
+                name: "wg0".into(),
+                peers: Vec::new(),
+            }],
             ..MockApi::default()
         };
         let response = handle(&mut api, ControlRequest::GetStats);
@@ -92,14 +97,19 @@ mod tests {
         let mut api = MockApi::default();
         let response = handle(
             &mut api,
-            ControlRequest::ReplacePeers { interface: "wg0".into(), peers: Vec::new() },
+            ControlRequest::ReplacePeers {
+                interface: "wg0".into(),
+                peers: Vec::new(),
+            },
         );
         assert!(response.ok);
         assert_eq!(api.replaced.as_ref().unwrap().0, "wg0");
 
         let response = handle(
             &mut api,
-            ControlRequest::ReloadConfig { toml: "[daemon]".into() },
+            ControlRequest::ReloadConfig {
+                toml: "[daemon]".into(),
+            },
         );
         assert!(response.ok);
         assert_eq!(api.reloaded.as_deref(), Some("[daemon]"));
@@ -107,7 +117,10 @@ mod tests {
 
     #[test]
     fn dispatch_preserves_typed_api_errors() {
-        let mut api = MockApi { fail: true, ..MockApi::default() };
+        let mut api = MockApi {
+            fail: true,
+            ..MockApi::default()
+        };
         let response = handle(&mut api, ControlRequest::GetStats);
         assert!(!response.ok);
         assert_eq!(response.error_kind, Some(ControlErrorKind::Unavailable));

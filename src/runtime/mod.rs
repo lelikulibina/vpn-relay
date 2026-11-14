@@ -8,22 +8,20 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
-use crate::control::{
-    ControlApi, ControlError, ControlErrorKind, ControlTransport, UnixTransport,
-};
-#[cfg(test)]
-use crate::control::{ControlRequest, ControlResponse};
 #[cfg(test)]
 use crate::control::unix::ControlSocket;
+use crate::control::unix::{UnixClient, UnixTransport};
+use crate::control::{ControlApi, ControlError, ControlErrorKind, ControlTransport};
+#[cfg(test)]
+use crate::control::{ControlRequest, ControlResponse};
 pub use crate::control::{InterfaceStats, PeerStats};
-use crate::control::unix::UnixClient;
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
 use forwarding::*;
 use lock::InstanceLock;
 use reload::*;
 use state::{load_conntrack_mark_history, persist_conntrack_mark_history};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -415,7 +413,6 @@ impl Runtime {
         Ok(())
     }
 }
-
 
 impl ControlApi for Runtime {
     fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError> {
