@@ -595,6 +595,63 @@ mod tests {
     }
 
     #[test]
+    fn empty_and_malformed_requests_are_rejected_without_dispatch() {
+        for (label, payload) in [
+            ("empty", &b""[..]),
+            ("malformed", &b"not json"[..]),
+            ("truncated", &br#"{"operation":"get_stats""#[..]),
+        ] {
+            let path = socket_path(label);
+            let mut transport = UnixTransport::bind(path.clone()).unwrap();
+            let mut client = UnixStream::connect(&path).unwrap();
+            client.write_all(payload).unwrap();
+            client.shutdown(std::net::Shutdown::Write).unwrap();
+
+            let mut api = MockApi::default();
+            transport.poll(&mut api);
+
+            let mut response = Vec::new();
+            client.read_to_end(&mut response).unwrap();
+            let response: ControlResponse = serde_json::from_slice(&response).unwrap();
+            assert!(!response.ok, "{label} request unexpectedly succeeded");
+            assert_eq!(
+                response.error_kind,
+                Some(ControlErrorKind::InvalidRequest),
+                "{label} request had the wrong error category"
+            );
+            assert_eq!(api.stats_calls.get(), 0);
+            drop(client);
+            drop(transport);
+            assert!(!path.exists());
+        }
+    }
+
+    #[test]
+    fn client_rejects_empty_malformed_and_truncated_responses() {
+        for (label, payload) in [
+            ("empty", &b""[..]),
+            ("malformed", &b"not json"[..]),
+            ("truncated", &br#"{"ok":true,"error":null"# [..]),
+        ] {
+            let path = socket_path(label);
+            let listener = UnixListener::bind(&path).unwrap();
+            let server = std::thread::spawn(move || {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut request = Vec::new();
+                stream.read_to_end(&mut request).unwrap();
+                let request: ControlRequest = serde_json::from_slice(&request).unwrap();
+                assert_eq!(request, ControlRequest::GetStats);
+                stream.write_all(payload).unwrap();
+            });
+
+            let error = UnixClient::send(&path, ControlRequest::GetStats).unwrap_err();
+            assert_eq!(error.kind, ControlErrorKind::Internal, "{label} response");
+            server.join().unwrap();
+            fs::remove_file(path).unwrap();
+        }
+    }
+
+    #[test]
     fn oversized_request_is_rejected_without_dispatch() {
         let path = socket_path("oversized");
         let mut transport = UnixTransport::bind(path.clone()).unwrap();
