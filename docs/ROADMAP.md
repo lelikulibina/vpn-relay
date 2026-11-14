@@ -10,7 +10,7 @@
 | P0 | Переработка тестовой системы и CI | выполнен; baseline и все 9 CI jobs подтверждены |
 | R1 | Модульное деление крупных файлов без изменения поведения | выполнен; CLI, config, Linux, routing и runtime разделены; control protocol/transport вынесены в R2 |
 | R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполнен; API/dispatch/transport разделены, Runtime API и legacy JSON wire format сохранены; typed error mapping, fatal-stop, socket ownership/lifecycle, права 0600, request/response limits, bounded serialization, timeouts и malformed/empty/truncated I/O покрыты тестами; полный CI 9/9 (run `43642057008`, HEAD `a9b9384`) |
-| R3 | Перенос nftables-логики на крейт `nftables` | запланирован |
+| R3 | Перенос nftables-логики на крейт `nftables` | выполняется; R3.0 spike завершён: основная модель правил покрывается типами crate, `iface_index` и table-level comment требуют узкого raw JSON adapter; далее R3.1 — NftApplier seam, без переключения production backend |
 | R4 | Дальнейшие улучшения (см. «Вне текущего рефакторинга») | идеи |
 
 Ветка рефакторинга: `refactor/modular-control-api-nftables` (от `daemon-improvements`).

@@ -259,3 +259,8 @@ Release workflow запускается по тегам `vpn-relay-v*`, свер
 - изменении security invariants или durable state format.
 
 Не превращайте AGENTS.md в changelog и не копируйте сюда большие фрагменты реализации. Он должен отвечать на вопросы: где искать код, как компоненты взаимодействуют, какие ограничения нельзя нарушать, какие проверки запускать.
+
+
+## 10.1. Статус nftables migration (R3)
+
+На текущем этапе production firewall по-прежнему строится `RoutingPlan::nft_script()` в `src/routing/nft_text.rs` и применяется `src/linux/nft.rs`; crate `nftables` пока не добавлен в `Cargo.toml` и не является runtime dependency. R3.0 read-only audit upstream API v0.6.3 подтвердил типизированную поддержку основных объектов/выражений/операторов и выявил два исключения: set datatype `iface_index` отсутствует в `SetType`, table-level `comment` отсутствует в `schema::Table`. При реализации R3 использовать узкий raw JSON adapter для этих элементов и ownership inspection; не ослаблять точную проверку family/name/comment и не менять fail-closed identity guards. R3.1 должен сначала ввести `NftApplier` seam с сохранением текущего script backend как эталона; переключение допускается только после интеграционного сравнения нормализованных rulesets.
