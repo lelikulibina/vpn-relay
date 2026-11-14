@@ -5,7 +5,9 @@
 
 - `src/config.rs` — TOML-модель и валидация.
 - `src/routing.rs` — единая модель routing decisions и генерация nftables.
-- `src/linux.rs` — применение nftables и policy routing, проверка владения.
+- `src/linux/nftables.rs` — применение nftables, table ownership checks и transactional batch.
+- `src/linux/policy_routing.rs` — применение и cleanup iproute2 policy routing с ownership checks.
+- `src/linux.rs` — общие Linux-команды, interface identity, TUN link и rtnetlink.
 - `src/runtime.rs` — startup/shutdown, блокировка экземпляра и sysctl.
 - `src/backend/` — backend-neutral lifecycle и BoringTun WG/AWG backend.
 
