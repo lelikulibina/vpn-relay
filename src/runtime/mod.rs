@@ -1,13 +1,13 @@
 //! Linux runtime: dispatch tunnel backends and install shared routing.
 mod lock;
 
-use lock::InstanceLock;
 use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
+use lock::InstanceLock;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
@@ -63,7 +63,6 @@ pub struct Runtime {
     retain_firewall: bool,
     _instance_lock: InstanceLock,
 }
-
 
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
