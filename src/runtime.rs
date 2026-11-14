@@ -11,7 +11,7 @@ pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
 use std::fs::{self, File, OpenOptions};
-use std::io::{Read, Write};
+use std::io::Read;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -976,7 +976,8 @@ impl Runtime {
         Self::send_control_request(ControlRequest::ReloadConfig {
             toml,
             mode: ReloadConfigMode::Full,
-        })\n        .map(|_| ())
+        })
+        .map(|_| ())
     }
 
     /// Replace only the peer set of one interface, preserving the legacy
