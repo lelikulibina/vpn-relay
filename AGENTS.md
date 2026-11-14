@@ -78,6 +78,10 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `scripts/vpn-relay-per-interface-forwarding-packet-test.sh` — фактическая передача IPv4 и IPv6 drop.
 - `scripts/vpn-relay-podman.Containerfile` и `scripts/vpn-relay-podman-container-test.sh` — rootful Podman smoke test в отдельном network namespace.
 
+## 3.1. Control plane
+
+`control/` отделяет транспорт от операций daemon: `api.rs` задаёт `ControlApi`, wire request/response и типизированные категории ошибок; `dispatch.rs` — единый dispatcher; `unix.rs` — ownership-safe Unix server transport и клиент. `Runtime` реализует `ControlApi`, но не зависит от Unix socket API; transport polling выполняется из `Runtime::run`.
+
 ## 4. Архитектура и поток данных
 
 Высокоуровневое направление зависимостей:

@@ -1382,6 +1382,7 @@ fn stats_control_response_preserves_client_and_endpoint_metadata() {
                 handshake_age_secs: Some(12),
             }],
         }]),
+        error_kind: None,
     };
     let encoded = serde_json::to_vec(&response).unwrap();
     let decoded: ControlResponse = serde_json::from_slice(&encoded).unwrap();
