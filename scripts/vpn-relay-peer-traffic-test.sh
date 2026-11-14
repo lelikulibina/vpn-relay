@@ -4,9 +4,62 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BIN="${VPN_RELAY_BIN:-$ROOT/target/debug/vpn-relay}"
 PROTO="${1:-wg}"
+TUNNEL_TYPE="wg"
+AWG_CONFIG=""
 case "$PROTO" in
-    wg|awg) ;;
-    *) echo "usage: $0 [wg|awg]" >&2; exit 2 ;;
+    wg)
+        TUNNEL_TYPE="wg"
+        ;;
+    awg3)
+        TUNNEL_TYPE="awg"
+        AWG_CONFIG=$(cat <<'AWG'
+jc = 5
+jmin = 50
+jmax = 1000
+s1 = 12
+s2 = 12
+s3 = 12
+s4 = 12
+h1 = "1-100"
+h2 = "101-200"
+h3 = "201-300"
+h4 = "301-400"
+AWG
+)
+        ;;
+    awg31)
+        TUNNEL_TYPE="awg"
+        AWG_CONFIG=$(cat <<'AWG'
+jc = 5
+jmin = 50
+jmax = 1000
+s1 = 12
+s2 = 12
+s3 = 12
+s4 = 12
+h1 = "1-100"
+h2 = "101-200"
+h3 = "201-300"
+h4 = "301-400"
+i1 = "<b 0x4142><r 8>"
+i2 = "<t>"
+i3 = "<rc 4>"
+i4 = "<rd 4>"
+i5 = "<dz 2>"
+header_protection_key = "QkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkI="
+content_padding_addition = "10-100"
+rekey_after_time = "100-120"
+rekey_timeout = "3-8"
+reject_after_time = "150-180"
+keepalive_timeout = "7-13"
+max_handshake_attempts = "15-20"
+AWG
+)
+        ;;
+    *)
+        echo "usage: $0 [wg|awg3|awg31]" >&2
+        exit 2
+        ;;
 esac
 
 SUFFIX="$$"
@@ -141,11 +194,12 @@ stats_interval_secs = 1
 nft_table = "vpn_relay_peer_srv_$SUFFIX"
 
 [interfaces.wg-peer-test]
-type = "$PROTO"
+type = "$TUNNEL_TYPE"
 address = ["10.77.0.1/24"]
 listen_port = 51871
 private_key = "$SERVER_PRIVATE"
 socket_fwmark = 5001
+$AWG_CONFIG
 
 [[interfaces.wg-peer-test.peers]]
 public_key = "$CLIENT_PUBLIC"
@@ -198,11 +252,12 @@ stats_interval_secs = 1
 nft_table = "vpn_relay_peer_cli_$SUFFIX"
 
 [interfaces.wg-peer-test]
-type = "$PROTO"
+type = "$TUNNEL_TYPE"
 address = ["10.77.0.2/24"]
 listen_port = 51872
 private_key = "$CLIENT_PRIVATE"
 socket_fwmark = 5002
+$AWG_CONFIG
 
 [[interfaces.wg-peer-test.peers]]
 public_key = "$SERVER_PUBLIC"
