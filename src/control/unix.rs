@@ -545,7 +545,10 @@ mod tests {
         let mut writer = BoundedResponseWriter {
             payload: Vec::new(),
         };
-        assert_eq!(writer.write(&vec![b'x'; MAX_RESPONSE_SIZE]).unwrap(), MAX_RESPONSE_SIZE);
+        assert_eq!(
+            writer.write(&vec![b'x'; MAX_RESPONSE_SIZE]).unwrap(),
+            MAX_RESPONSE_SIZE
+        );
         assert_eq!(writer.payload.len(), MAX_RESPONSE_SIZE);
         assert!(writer.write(b"x").is_err());
         assert_eq!(writer.payload.len(), MAX_RESPONSE_SIZE);
