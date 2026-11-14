@@ -56,11 +56,16 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/main.rs` — тонкий platform entry point; Linux вызывает `vpn_relay::cli::run()`, не-Linux сообщает о неподдерживаемой платформе.
 - `src/cli.rs` — ручной разбор аргументов, foreground/background, настройка файлового логирования, табличная статистика и CLI dispatch. Операции управления работающим daemon вызывают Unix client через Runtime.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
-- `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор key/CIDR и конфигурационные unit tests.
+- `src/config.rs` — TOML-модель, serde-типы, defaults, TOML parsing, reload compatibility и общие helpers.
+- `src/config/validation.rs` — fail-closed validation модели, key/CIDR/interface constraints.
+- `src/config/tests.rs` — конфигурационные unit tests.
 - `src/config/endpoint.rs` — разбор `host:port` и проверка DNS-имён; публичные `PeerEndpoint` и `EndpointHost` реэкспортируются из `config`.
 - `src/import.rs` — импорт orchestration: in-memory merge, validation, offline file update и atomic write; import tests.
 - `src/import/parser.rs` — разбор WireGuard/AmneziaWG INI sections, peer parameters, AWG parameters, parsing helpers и conversion в `InterfaceConfig`.
-- `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, команды iproute2 и routing unit tests.
+- `src/routing.rs` — backend-independent routing plan, egress resources и команды iproute2.
+- `src/routing/conntrack.rs` — allocation и validation durable conntrack decision IDs.
+- `src/routing/nft.rs` — nftables policy rendering.
+- `src/routing/tests.rs` — routing plan и conntrack regression tests.
 - `src/routing/nft.rs` — чистая генерация fail-closed nftables policy из `RoutingPlan`; метод `RoutingPlan::nft_script` сохранён как совместимый facade.
 - `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
 - `src/linux/nftables.rs` — nft CLI adapter: table ownership checks, table replacement/removal и transactional batch apply. Это пока не миграция на crate `nftables`; текущая семантика и ownership marker сохранены.
@@ -68,7 +73,8 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
 - `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; делегирует запросы в `ControlApi`.
 - `src/import/parser.rs` — выделенный WG/AWG parser; файл `import.rs` не должен снова смешивать разбор входного формата с orchestration и файловой записью.
-- `src/runtime.rs` — orchestration и lifecycle: startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling и runtime tests.
+- `src/runtime.rs` — orchestration и lifecycle: startup/shutdown, reload/peer replacement transactions, snapshots/stats и signal handling.
+- `src/runtime/tests.rs` — runtime, state, socket, forwarding и peer transaction regression tests.
 - `src/runtime/control_api.rs` — реализация transport-independent `ControlApi` для Runtime; переводит DTO в application operations, без Unix wire protocol.
 - `src/runtime/control_socket.rs` — ownership-safe bind/drop Unix control socket, проверка inode/device и permissions.
 - `src/runtime/forwarding.rs` — IPv4 forwarding sysctl, durable forwarding journal, interface identity validation и аварийное восстановление.

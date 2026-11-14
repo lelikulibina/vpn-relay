@@ -51,7 +51,10 @@
 
 - `config/endpoint.rs` now owns endpoint parsing and DNS-name validation; `PeerEndpoint` and `EndpointHost` remain re-exported from `config` to preserve the public API.
 - `routing/nft.rs` now owns nftables policy rendering and its selector helpers; `RoutingPlan::nft_script()` remains the public facade. Rule contents and ordering are intended to remain byte-for-byte equivalent.
-- These latest extractions await the branch-head CI run before being marked complete.
+- Branch-head CI run `43584126385` completed successfully for endpoint and nft renderer extraction: format, check, clippy, 183 unit tests, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG and multi-uplink all passed.
+- Config validation is isolated in `config/validation.rs`; model/parser and reload compatibility remain behind the existing `config.rs` API.
+- Conntrack ID allocation/history validation is isolated in `routing/conntrack.rs`; `RoutingPlan` retains its methods as a narrow facade.
+- Config, routing and runtime tests are moved into dedicated child test modules with assertions retained; this batch awaits CI.
 
 ### Runtime extraction progress
 
@@ -61,7 +64,7 @@
 - `runtime/control_socket.rs`: Unix socket ownership-safe bind/drop and inode checks.
 - `runtime/control_api.rs`: Runtime implementation of transport-independent Control API.
 - Runtime orchestration remains in one parent module; tests remain in the parent test module for now to preserve access and coverage while boundaries settle.
-- The extraction commits after `e491d3c` have not yet completed a non-cancelled CI run; do not treat them as verified until the latest branch-head workflow finishes.
+- The complete runtime extraction batch is verified by branch-head CI run `43584126385`: 183 unit tests, both kernel compatibility jobs, Podman, routing/firewall/NAT, WG, AWG and multi-uplink all passed.
 
 ### Первичные результаты аудита
 
@@ -207,3 +210,4 @@
 | 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки. Первый CI прошёл quality, kernel compatibility, Podman и netns routing/firewall/NAT; после CLI extraction следующий CI выявил только rustfmt-порядок imports/modules, исправленный в этом commit. | [run 43547350227](https://github.com/lelikulibina/vpn-relay/actions/runs/43547350227) |
 | 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |
 | 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
+| 2026-11-14 | Routing/config/runtime extraction | Выделены config validation и conntrack ID allocation; config/routing/runtime tests перемещены в отдельные child modules | CI pending |

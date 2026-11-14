@@ -3,12 +3,13 @@
 Документ описывает реализацию в отдельном репозитории `lelikulibina/vpn-relay`.
 Основные компоненты:
 
-- `src/config.rs` — TOML-модель и валидация.
-- `src/routing.rs` — единая модель routing decisions и генерация nftables.
+- `src/config.rs` и `src/config/validation.rs` — TOML-модель, parsing, reload compatibility и fail-closed validation.
+- `src/routing.rs` и `src/routing/conntrack.rs` — routing plan, routing decisions и durable conntrack decision IDs.
+- `src/routing/nft.rs` — генерация nftables policy.
 - `src/linux/nftables.rs` — применение nftables, table ownership checks и transactional batch.
 - `src/linux/policy_routing.rs` — применение и cleanup iproute2 policy routing с ownership checks.
 - `src/linux.rs` — общие Linux-команды, interface identity, TUN link и rtnetlink.
-- `src/runtime.rs` — startup/shutdown, блокировка экземпляра и sysctl.
+- `src/runtime.rs` и `src/runtime/` — startup/shutdown orchestration, control socket/API, peer transactions, state и forwarding recovery.
 - `src/backend/` — backend-neutral lifecycle и BoringTun WG/AWG backend.
 
 ## Путь пакета и порядок hooks

@@ -72,7 +72,7 @@ sudo target/release/vpn-relay --config /etc/vpn-relay/config.toml --import wg0.c
 
 ## Конфигурация и архитектура
 
-CLI и daemon control разделены: `src/cli.rs` отвечает за аргументы и пользовательский вывод, `src/control.rs` задаёт три transport-independent операции (`reload_config`, `get_stats`, `import_config`), а `src/control/unix.rs` реализует Unix Domain Socket transport. Импорт в работающий daemon принимает содержимое WG/AWG профиля; обычный `--import` сохраняет возможность офлайн-изменения конфигурационного файла.
+CLI и daemon control разделены: `src/cli.rs` отвечает за аргументы и пользовательский вывод, `src/control.rs` задаёт три transport-independent операции (`reload_config`, `get_stats`, `import_config`), а `src/control/unix.rs` реализует Unix Domain Socket transport. Config validation, nftables policy rendering и conntrack decision allocation изолированы во внутренних модулях; TOML schema и публичные фасады сохранены. Импорт в работающий daemon принимает содержимое WG/AWG профиля; обычный `--import` сохраняет возможность офлайн-изменения конфигурационного файла.
 
 Полный пример поддерживаемой конфигурации — [vpn-relay.example.toml](vpn-relay.example.toml). Отдельная копия в examples/ удалена, чтобы не поддерживать два расходящихся источника истины.
 
