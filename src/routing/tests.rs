@@ -602,7 +602,13 @@ fn nft_json_preserves_interface_identity_and_ownership_metadata() {
         .iter()
         .find_map(|object| object.get("add").and_then(|add| add.get("table")))
         .unwrap();
-    assert_eq!(table["comment"], "managed by vpn-relay");
+    assert_eq!(table["name"], plan.nft_table);
+    let owner_rule = objects
+        .iter()
+        .find_map(|object| object.get("add").and_then(|add| add.get("rule")))
+        .filter(|rule| rule["chain"] == "vpn_relay_owner")
+        .unwrap();
+    assert_eq!(owner_rule["comment"], "managed by vpn-relay");
 
     let sets = objects
         .iter()
