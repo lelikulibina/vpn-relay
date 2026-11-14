@@ -12,8 +12,8 @@ mod control_socket;
 mod forwarding;
 mod peers;
 mod state;
-use forwarding::*;
 use control_socket::*;
+use forwarding::*;
 use peers::*;
 use state::*;
 use std::fs;
@@ -25,9 +25,9 @@ use std::io::Write;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 #[cfg(test)]
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::PathBuf;
 #[cfg(test)]
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
