@@ -1,5 +1,5 @@
 #[cfg(target_os = "linux")]
-use vpn_relay::InterfaceStats;
+use crate::InterfaceStats;
 
 #[cfg(target_os = "linux")]
 pub(super) fn print_stats(interfaces: &[InterfaceStats]) {

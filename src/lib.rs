@@ -6,6 +6,8 @@
 
 #[cfg(target_os = "linux")]
 pub mod backend;
+#[cfg(target_os = "linux")]
+pub mod cli;
 pub mod config;
 pub mod import;
 #[cfg(target_os = "linux")]
