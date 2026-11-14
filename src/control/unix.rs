@@ -221,6 +221,34 @@ impl ControlTransport for UnixTransport {
 /// Client helper for the Unix transport. Runtime wrappers preserve the old public API.
 pub struct UnixClient;
 
+fn validate_response(
+    request: &ControlRequest,
+    response: &ControlResponse,
+) -> Result<(), ControlError> {
+    let invalid = |message: &str| ControlError::new(ControlErrorKind::Internal, message);
+
+    if response.ok {
+        if response.error.is_some() || response.error_kind.is_some() {
+            return Err(invalid("daemon returned a success response with error fields"));
+        }
+        match request {
+            ControlRequest::GetStats if response.stats.is_none() => {
+                return Err(invalid("daemon returned no statistics"));
+            }
+            ControlRequest::ReplacePeers { .. } | ControlRequest::ReloadConfig { .. }
+                if response.stats.is_some() =>
+            {
+                return Err(invalid("daemon returned unexpected statistics"));
+            }
+            _ => {}
+        }
+    } else if response.stats.is_some() {
+        return Err(invalid("daemon returned statistics with an error response"));
+    }
+
+    Ok(())
+}
+
 impl UnixClient {
     pub(crate) fn send(
         path: &Path,
@@ -258,6 +286,7 @@ impl UnixClient {
         }
         let response: ControlResponse = serde_json::from_slice(&response)
             .map_err(|error| ControlError::new(ControlErrorKind::Internal, error.to_string()))?;
+        validate_response(&request, &response)?;
         if response.ok {
             Ok(response)
         } else {
@@ -336,6 +365,88 @@ mod tests {
             "vpn-relay-control-{label}-{}-{nonce}.sock",
             std::process::id()
         ))
+    }
+
+    #[test]
+    fn response_validation_rejects_inconsistent_success_fields() {
+        let request = ControlRequest::GetStats;
+        let response = ControlResponse {
+            ok: true,
+            error: Some("unexpected".to_owned()),
+            stats: Some(Vec::new()),
+            error_kind: None,
+        };
+        let error = validate_response(&request, &response).unwrap_err();
+        assert_eq!(error.kind, ControlErrorKind::Internal);
+
+        let response = ControlResponse {
+            ok: true,
+            error: None,
+            stats: None,
+            error_kind: None,
+        };
+        assert_eq!(
+            validate_response(&request, &response).unwrap_err().message(),
+            "daemon returned no statistics"
+        );
+    }
+
+    #[test]
+    fn response_validation_rejects_stats_for_mutation_and_failure() {
+        let mutation = ControlRequest::ReloadConfig { toml: String::new() };
+        let response = ControlResponse {
+            ok: true,
+            error: None,
+            stats: Some(Vec::new()),
+            error_kind: None,
+        };
+        assert_eq!(
+            validate_response(&mutation, &response).unwrap_err().message(),
+            "daemon returned unexpected statistics"
+        );
+
+        let response = ControlResponse {
+            ok: false,
+            error: Some("rejected".to_owned()),
+            stats: Some(Vec::new()),
+            error_kind: Some(ControlErrorKind::Conflict),
+        };
+        assert_eq!(
+            validate_response(&ControlRequest::GetStats, &response)
+                .unwrap_err()
+                .message(),
+            "daemon returned statistics with an error response"
+        );
+    }
+
+    #[test]
+    fn response_validation_accepts_legacy_failure_and_valid_success() {
+        let legacy_failure = ControlResponse {
+            ok: false,
+            error: Some("legacy rejected".to_owned()),
+            stats: None,
+            error_kind: None,
+        };
+        assert!(validate_response(&ControlRequest::GetStats, &legacy_failure).is_ok());
+
+        let stats_success = ControlResponse {
+            ok: true,
+            error: None,
+            stats: Some(Vec::new()),
+            error_kind: None,
+        };
+        assert!(validate_response(&ControlRequest::GetStats, &stats_success).is_ok());
+
+        let mutation_success = ControlResponse {
+            ok: true,
+            error: None,
+            stats: None,
+            error_kind: None,
+        };
+        assert!(validate_response(
+            &ControlRequest::ReloadConfig { toml: String::new() },
+            &mutation_success
+        ).is_ok());
     }
 
     #[test]
