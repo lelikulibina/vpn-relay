@@ -526,6 +526,38 @@ mod tests {
     }
 
     #[test]
+    fn client_connection_failure_is_unavailable() {
+        let path = socket_path("missing");
+        let error = UnixClient::send(&path, ControlRequest::GetStats).unwrap_err();
+        assert_eq!(error.kind, ControlErrorKind::Unavailable);
+    }
+
+    #[test]
+    fn server_read_timeout_is_reported_as_unavailable() {
+        let path = socket_path("read-timeout");
+        let mut transport = UnixTransport::bind(path.clone()).unwrap();
+        let mut client = UnixStream::connect(&path).unwrap();
+        let mut api = MockApi::default();
+
+        transport.poll(&mut api);
+
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        let response: ControlResponse = serde_json::from_slice(&response).unwrap();
+        assert!(!response.ok);
+        assert_eq!(response.error_kind, Some(ControlErrorKind::Unavailable));
+        assert!(response
+            .error
+            .as_deref()
+            .unwrap()
+            .contains("failed to read control request"));
+        assert_eq!(api.stats_calls.get(), 0);
+        drop(client);
+        drop(transport);
+        assert!(!path.exists());
+    }
+
+    #[test]
     fn client_rejects_oversized_request_before_connecting() {
         let path = socket_path("client-oversized-request");
         let error = UnixClient::send(
