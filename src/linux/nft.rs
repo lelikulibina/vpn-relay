@@ -6,7 +6,7 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 
 /// Return true only when the nftables table object itself carries our ownership marker.
-fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
+pub(super) fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
     let Ok(document) = serde_json::from_str::<Value>(json) else {
         return false;
     };
@@ -28,7 +28,7 @@ fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
 /// Older nftables releases omit table comments from JSON output. Fall back to
 /// the human-readable representation, but accept only the table-level comment
 /// (four-space indentation), never a similarly named comment inside a chain.
-fn table_is_owned_text(output: &str, family: &str, name: &str) -> bool {
+pub(super) fn table_is_owned_text(output: &str, family: &str, name: &str) -> bool {
     let expected_header = format!("table {family} {name} {{");
     let expected_comment = "comment \"managed by vpn-relay\"";
     let mut in_table = false;
