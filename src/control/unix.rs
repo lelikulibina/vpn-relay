@@ -273,7 +273,6 @@ impl UnixClient {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,9 +325,7 @@ mod tests {
         let path = socket_path("oversized");
         let mut transport = UnixTransport::bind(path.clone()).unwrap();
         let mut client = UnixStream::connect(&path).unwrap();
-        client
-            .write_all(&vec![b' '; 1024 * 1024 + 1])
-            .unwrap();
+        client.write_all(&vec![b' '; 1024 * 1024 + 1]).unwrap();
         client.shutdown(std::net::Shutdown::Write).unwrap();
 
         let mut api = MockApi::default();
@@ -360,15 +357,11 @@ mod tests {
             },
         )
         .unwrap();
-        fatal_request
-            .shutdown(std::net::Shutdown::Write)
-            .unwrap();
+        fatal_request.shutdown(std::net::Shutdown::Write).unwrap();
 
         let mut queued_request = UnixStream::connect(&path).unwrap();
         serde_json::to_writer(&mut queued_request, &ControlRequest::GetStats).unwrap();
-        queued_request
-            .shutdown(std::net::Shutdown::Write)
-            .unwrap();
+        queued_request.shutdown(std::net::Shutdown::Write).unwrap();
         queued_request
             .set_read_timeout(Some(Duration::from_millis(50)))
             .unwrap();
