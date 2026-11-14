@@ -272,3 +272,125 @@ impl UnixClient {
         Self::send(path, ControlRequest::ReloadConfig { toml }).map(|_| ())
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::cell::Cell;
+    use std::io::{Read, Write};
+
+    #[derive(Default)]
+    struct MockApi {
+        fatal: bool,
+        stats_calls: Cell<usize>,
+    }
+
+    impl ControlApi for MockApi {
+        fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError> {
+            self.stats_calls.set(self.stats_calls.get() + 1);
+            Ok(Vec::new())
+        }
+
+        fn replace_peers(
+            &mut self,
+            _interface: &str,
+            _peers: Vec<PeerConfig>,
+        ) -> Result<(), ControlError> {
+            self.fatal = true;
+            Ok(())
+        }
+
+        fn reload_config(&mut self, _toml: &str) -> Result<(), ControlError> {
+            Ok(())
+        }
+
+        fn is_fatal(&self) -> bool {
+            self.fatal
+        }
+    }
+
+    fn socket_path(label: &str) -> PathBuf {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "vpn-relay-control-{label}-{}-{nonce}.sock",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn oversized_request_is_rejected_without_dispatch() {
+        let path = socket_path("oversized");
+        let mut transport = UnixTransport::bind(path.clone()).unwrap();
+        let mut client = UnixStream::connect(&path).unwrap();
+        client
+            .write_all(&vec![b' '; 1024 * 1024 + 1])
+            .unwrap();
+        client.shutdown(std::net::Shutdown::Write).unwrap();
+
+        let mut api = MockApi::default();
+        transport.poll(&mut api);
+
+        let mut response = Vec::new();
+        client.read_to_end(&mut response).unwrap();
+        let response: ControlResponse = serde_json::from_slice(&response).unwrap();
+        assert!(!response.ok);
+        assert_eq!(response.error_kind, Some(ControlErrorKind::InvalidRequest));
+        assert_eq!(
+            response.error.as_deref(),
+            Some("request exceeds 1 MiB limit")
+        );
+        assert_eq!(api.stats_calls.get(), 0);
+    }
+
+    #[test]
+    fn fatal_transition_stops_dispatching_queued_requests() {
+        let path = socket_path("fatal");
+        let mut transport = UnixTransport::bind(path.clone()).unwrap();
+
+        let mut fatal_request = UnixStream::connect(&path).unwrap();
+        serde_json::to_writer(
+            &mut fatal_request,
+            &ControlRequest::ReplacePeers {
+                interface: "wg0".to_owned(),
+                peers: Vec::new(),
+            },
+        )
+        .unwrap();
+        fatal_request
+            .shutdown(std::net::Shutdown::Write)
+            .unwrap();
+
+        let mut queued_request = UnixStream::connect(&path).unwrap();
+        serde_json::to_writer(&mut queued_request, &ControlRequest::GetStats).unwrap();
+        queued_request
+            .shutdown(std::net::Shutdown::Write)
+            .unwrap();
+        queued_request
+            .set_read_timeout(Some(Duration::from_millis(50)))
+            .unwrap();
+
+        let mut api = MockApi::default();
+        transport.poll(&mut api);
+
+        let mut response = Vec::new();
+        fatal_request.read_to_end(&mut response).unwrap();
+        let response: ControlResponse = serde_json::from_slice(&response).unwrap();
+        assert!(response.ok);
+        assert!(api.is_fatal());
+        assert_eq!(api.stats_calls.get(), 0);
+
+        let mut byte = [0u8; 1];
+        assert!(matches!(
+            queued_request.read(&mut byte),
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                )
+        ));
+    }
+}
