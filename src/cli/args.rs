@@ -97,8 +97,16 @@ impl Args {
             return Err("--yes can only be used with --import".into());
         }
         Ok(Some(Self {
-            config_path, check_only, stats_requested, background, log_path, log_enabled,
-            replace_peers_interface, reload_config_requested, import_args, yes,
+            config_path,
+            check_only,
+            stats_requested,
+            background,
+            log_path,
+            log_enabled,
+            replace_peers_interface,
+            reload_config_requested,
+            import_args,
+            yes,
         }))
     }
 }

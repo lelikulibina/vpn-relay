@@ -41,7 +41,7 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 return Ok(());
             }
         }
-        let report = vpn_relay::import::import_file(&source, &config_path, &name, exists)?;
+        let report = crate::import::import_file(&source, &config_path, &name, exists)?;
         println!("Импортирован интерфейс '{name}': {:?}.", report.tunnel_type);
         if report.replaced {
             println!(

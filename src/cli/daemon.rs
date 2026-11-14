@@ -1,7 +1,7 @@
+use crate::{Config, Runtime};
 use std::io::Read;
 use std::os::fd::FromRawFd;
 use std::path::PathBuf;
-use crate::{Config, Runtime};
 
 pub(super) fn init_logging(
     path: Option<PathBuf>,
