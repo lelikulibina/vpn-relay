@@ -74,5 +74,4 @@ impl Config {
 
         Ok(())
     }
-
 }
