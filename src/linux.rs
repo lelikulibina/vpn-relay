@@ -1,4 +1,5 @@
 //! Linux command execution for daemon-owned network resources.
+#[cfg(test)]
 use crate::routing::RoutingPlan;
 use std::process::Command;
 
@@ -11,10 +12,9 @@ pub use policy_routing::{
 };
 #[cfg(test)]
 use policy_routing::{
-    apply_egress_policy_routing_with, apply_policy_routing_with, ensure_policy_slots_available,
-    parse_fwmark_value, remove_egress_policy_routing_with, remove_policy_routing_with,
-    remove_socket_mark_rules_with, route_has_owned_identity, rule_has_owned_identity,
-    rule_matches_fwmark, rule_uses_table, run_ip_cleanup_with,
+    apply_egress_policy_routing_with, apply_policy_routing_with,
+    remove_egress_policy_routing_with, remove_policy_routing_with, route_has_owned_identity,
+    rule_has_owned_identity, rule_matches_fwmark,
 };
 #[cfg(test)]
 use nftables::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
