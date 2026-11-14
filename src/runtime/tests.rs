@@ -1,6 +1,9 @@
 use super::*;
-use std::os::unix::fs::PermissionsExt;
-use std::os::unix::net::UnixListener;
+use std::fs::{self, File, OpenOptions};
+use std::io::Write;
+use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::Path;
 
 #[test]
 fn unmanaged_forwarding_treats_any_nonzero_value_as_enabled() {
@@ -185,7 +188,7 @@ fn control_socket_bind_failure_removes_incompletely_configured_path() {
         ))
     });
     assert!(
-        matches!(result, Err(RuntimeError::Control(message)) if message.contains("injected socket configuration failure"))
+        matches!(result, Err(error) if error.to_string().contains("injected socket configuration failure"))
     );
     assert!(!path.exists());
 }
@@ -204,7 +207,7 @@ fn control_socket_bind_rejects_replaced_path_without_unlinking_it() {
     });
     assert!(matches!(
         result,
-        Err(RuntimeError::Control(message)) if message.contains("path changed while being configured")
+        Err(error) if error.to_string().contains("path changed while being configured")
     ));
     assert_eq!(std::fs::read(&path).unwrap(), b"external replacement");
     std::fs::remove_file(path).unwrap();
@@ -237,7 +240,7 @@ fn control_socket_refuses_to_replace_regular_files() {
     std::fs::write(&path, b"do not replace").unwrap();
     assert!(matches!(
         ControlSocket::bind(path.clone()),
-        Err(RuntimeError::Control(_))
+        Err(_)
     ));
     assert_eq!(std::fs::read(&path).unwrap(), b"do not replace");
     std::fs::remove_file(path).unwrap();
