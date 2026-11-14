@@ -1,7 +1,5 @@
 use super::*;
 
-// A new namespace prevents pre-state-file conntrack entries from being reinterpreted after upgrade.
-const FIRST_CONNTRACK_MARK: u32 = 0x5000_0000;
 const LEGACY_CONNTRACK_MARK: u32 = 0x4000_0000;
 
 impl RoutingPlan {
@@ -94,5 +92,4 @@ impl RoutingPlan {
 
         Ok(())
     }
-
 }

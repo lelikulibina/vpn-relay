@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 pub(crate) const FIRST_ROUTING_TABLE: u32 = 10_000;
 pub(crate) const FIRST_IP_RULE_PRIORITY: u32 = 10_000;
 const SOCKET_MAIN_RULE_PRIORITY: u32 = 9_000;
+const FIRST_CONNTRACK_MARK: u32 = 0x5000_0000;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EgressPlan {

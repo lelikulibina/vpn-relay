@@ -321,7 +321,6 @@ impl RoutingPlan {
         }
         output
     }
-
 }
 
 fn firewall_rule_family_variants(
@@ -409,4 +408,3 @@ fn append_cidr_selector(
         ));
     }
 }
-
