@@ -1,7 +1,7 @@
 //! Import standard WireGuard and AmneziaWG INI configurations.
-use crate::config::{
-    Config, InterfaceConfig, PeerConfig, PeerEndpoint, PersistentKeepaliveConfig, TunnelType,
-};
+use crate::config::{Config, TunnelType};
+#[cfg(test)]
+use crate::config::PersistentKeepaliveConfig;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
