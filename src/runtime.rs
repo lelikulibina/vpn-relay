@@ -12,6 +12,8 @@ use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
+#[cfg(test)]
+use std::io::Write;
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
@@ -1072,12 +1074,15 @@ impl ControlApi for Runtime {
             ReloadConfigMode::Full => parsed,
             ReloadConfigMode::ReplacePeers { interface } => {
                 let imported = parsed.interfaces.get(&interface).ok_or_else(|| {
-                    ControlError::new(format!("interface '{interface}' is missing from supplied configuration"))
+                    ControlError::new(format!(
+            "interface '{interface}' is missing from supplied configuration"
+        ))
                 })?;
                 let mut candidate = self.config.clone();
-                let target = candidate.interfaces.get_mut(&interface).ok_or_else(|| {
-                    ControlError::new(format!("unknown interface '{interface}'"))
-                })?;
+                let target = candidate
+                    .interfaces
+                    .get_mut(&interface)
+                    .ok_or_else(|| ControlError::new(format!("unknown interface '{interface}'")))?;
                 target.peers = imported.peers.clone();
                 candidate
             }
@@ -2022,16 +2027,16 @@ mod tests {
         let operations = ["get_stats", "reload_config", "import_config"];
         for (request, operation) in requests.iter().zip(operations) {
             let encoded = serde_json::to_vec(request).unwrap();
-            assert!(
-                String::from_utf8_lossy(&encoded)
-                    .contains(&format!("\"operation\":\"{operation}\""))
-            );
+            assert!(String::from_utf8_lossy(&encoded)
+                .contains(&format!("\"operation\":\"{operation}\"")));
             assert_eq!(
                 serde_json::from_slice::<ControlRequest>(&encoded).unwrap(),
                 *request
             );
         }
-        assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"replace_peers"}"#).is_err());
+        assert!(
+            serde_json::from_slice::<ControlRequest>(br#"{"operation":"replace_peers"}"#).is_err()
+        );
         assert!(serde_json::from_slice::<ControlRequest>(br#"{"operation":"unknown"}"#).is_err());
     }
 
