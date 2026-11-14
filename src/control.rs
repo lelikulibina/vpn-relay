@@ -1,26 +1,64 @@
-//! Transport-independent control-plane data types shared by the daemon and CLI.
+//! Transport-independent application control API and Unix wire contracts.
 //!
-//! The Unix socket currently serializes the request/response DTOs below. Keeping
-//! them outside Runtime is the first boundary toward a transport-neutral
-//! Control API. Transport handling and application operations can now be
-//! migrated without making these contracts depend on Runtime internals.
+//! The API exposes three stable operations. Transport adapters serialize the
+//! wire request types and invoke the same `ControlApi` implementation;
+//! application errors and domain results do not depend on Unix sockets.
 
 use crate::config::PeerConfig;
+use crate::import::ImportReport;
 
-/// Request DTO used by the existing local control protocol.
-///
-/// Existing operations remain available during the staged migration so the
-/// current CLI contract is not broken before all consumers are migrated.
+/// Error returned by a Control API implementation.
+#[derive(Clone, Debug, thiserror::Error, Eq, PartialEq)]
+#[error("{message}")]
+pub struct ControlError {
+    message: String,
+}
+
+impl ControlError {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+/// Request to validate and transactionally apply a complete configuration.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+pub struct ReloadConfigRequest {
+    pub toml: String,
+}
+
+/// Request to import one WireGuard/AmneziaWG interface into the active config.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, Eq, PartialEq)]
+pub struct ImportConfigRequest {
+    /// Source configuration contents (not a path owned by the transport).
+    pub source: String,
+    pub interface: String,
+    pub replace: bool,
+}
+
+/// Transport-independent control operations exposed by the daemon.
+pub trait ControlApi {
+    fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError>;
+    fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError>;
+    fn import_config(
+        &mut self,
+        request: ImportConfigRequest,
+    ) -> Result<ImportReport, ControlError>;
+}
+
+/// Request DTO used by the current Unix Domain Socket transport.
 #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub(crate) enum ControlRequest {
     GetStats,
-    ReplacePeers {
-        interface: String,
-        peers: Vec<PeerConfig>,
-    },
     ReloadConfig {
         toml: String,
+    },
+    ImportConfig {
+        source: String,
+        interface: String,
+        replace: bool,
     },
 }
 
@@ -48,4 +86,11 @@ pub(crate) struct ControlResponse {
     pub(crate) error: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub(crate) stats: Option<Vec<InterfaceStats>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) import_report: Option<ImportReport>,
 }
+
+// Kept as a protocol-level conversion helper so the legacy peer replacement
+// CLI can be migrated to a full reload without exposing a fourth API method.
+#[allow(dead_code)]
+fn _peer_config_is_wire_serializable(_: Vec<PeerConfig>) {}
