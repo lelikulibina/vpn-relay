@@ -24,6 +24,14 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Format
+        run: cargo fmt --all
+      - name: Upload rustfmt output for extraction
+        uses: actions/upload-artifact@v4
+        with:
+          name: rustfmt-source-snapshot
+          path: src/
+          retention-days: 1
+      - name: Verify format
         run: cargo fmt --all --check
       - name: Check
         run: cargo check --locked --all-targets
