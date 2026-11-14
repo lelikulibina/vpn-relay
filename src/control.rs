@@ -9,9 +9,7 @@ use crate::import::ImportReport;
 #[cfg(target_os = "linux")]
 mod unix;
 #[cfg(target_os = "linux")]
-pub(crate) use unix::{
-    handle_unix_connection, send_unix_request, ControlRequest, ControlResponse,
-};
+pub(crate) use unix::{handle_unix_connection, send_unix_request, ControlRequest, ControlResponse};
 
 /// Error returned by a Control API implementation.
 #[derive(Clone, Debug, thiserror::Error, Eq, PartialEq)]
@@ -58,10 +56,8 @@ pub struct ImportConfigRequest {
 pub trait ControlApi {
     fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError>;
     fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError>;
-    fn import_config(
-        &mut self,
-        request: ImportConfigRequest,
-    ) -> Result<ImportReport, ControlError>;
+    fn import_config(&mut self, request: ImportConfigRequest)
+        -> Result<ImportReport, ControlError>;
 }
 
 /// Statistics for one managed tunnel interface.
