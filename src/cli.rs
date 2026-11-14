@@ -13,64 +13,136 @@ const DEFAULT_CONFIG: &str = "/etc/vpn-relay/config.toml";
 const DEFAULT_LOG: &str = "/var/log/vpn-relay.log";
 
 #[cfg(target_os = "linux")]
-pub fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let mut args = std::env::args().skip(1).peekable();
-    let mut config_path = PathBuf::from(DEFAULT_CONFIG);
-    let mut check_only = false;
-    let mut stats_requested = false;
-    let mut background = false;
-    let mut log_path: Option<PathBuf> = None;
-    let mut log_enabled = false;
-    let mut replace_peers_interface: Option<String> = None;
-    let mut reload_config_requested = false;
-    let mut import_args: Option<(PathBuf, String)> = None;
-    let mut yes = false;
+#[derive(Debug, PartialEq, Eq)]
+struct CliOptions {
+    config_path: PathBuf,
+    check_only: bool,
+    stats_requested: bool,
+    background: bool,
+    log_path: Option<PathBuf>,
+    log_enabled: bool,
+    replace_peers_interface: Option<String>,
+    reload_config_requested: bool,
+    import_args: Option<(PathBuf, String)>,
+    yes: bool,
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, PartialEq, Eq)]
+enum ParseResult {
+    Help,
+    Options(CliOptions),
+}
+
+#[cfg(target_os = "linux")]
+fn print_help() {
+    println!("Usage:\n  vpn-relay [--config PATH] [--check]\n  vpn-relay [--config PATH] --stats\n  vpn-relay [--config PATH] --replace-peers INTERFACE\n  vpn-relay [--config PATH] --reload\n  vpn-relay [--config PATH] --import WG.conf INTERFACE [--yes]\n  vpn-relay [--config PATH] [--background] [--log [PATH]]\n\nOptions:\n  -c, --config PATH  Configuration file (default: {DEFAULT_CONFIG})\n      --check        Validate configuration and exit\n      --stats        Print detailed live peer statistics\n      --background, -b  Run daemon in the background\n      --log [PATH]   Enable logging (default: {DEFAULT_LOG})\n      --replace-peers INTERFACE  Replace this interface peer set in a running daemon\n      --reload       Apply the complete config file to a running daemon\n      --import       Import WireGuard/AmneziaWG configuration\n  -y, --yes          Replace an existing interface without prompting");
+}
+
+#[cfg(target_os = "linux")]
+fn parse_args(
+    args: impl IntoIterator<Item = String>,
+) -> Result<ParseResult, String> {
+    let mut args = args.into_iter().peekable();
+    let mut options = CliOptions {
+        config_path: PathBuf::from(DEFAULT_CONFIG),
+        check_only: false,
+        stats_requested: false,
+        background: false,
+        log_path: None,
+        log_enabled: false,
+        replace_peers_interface: None,
+        reload_config_requested: false,
+        import_args: None,
+        yes: false,
+    };
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "-c" | "--config" => {
-                config_path = args.next().ok_or("--config requires a path")?.into()
+                options.config_path = args.next().ok_or("--config requires a path")?.into()
             }
-            "--check" => check_only = true,
-            "--stats" => stats_requested = true,
-            "--background" | "-b" => background = true,
+            "--check" => options.check_only = true,
+            "--stats" => options.stats_requested = true,
+            "--background" | "-b" => options.background = true,
             "--log" => {
-                log_enabled = true;
-                log_path = match args.next_if(|next| !next.starts_with('-')) {
+                options.log_enabled = true;
+                options.log_path = match args.next_if(|next| !next.starts_with('-')) {
                     Some(path) => Some(path.into()),
                     None => Some(PathBuf::from(DEFAULT_LOG)),
                 };
             }
             value if value.starts_with("--log=") => {
-                log_enabled = true;
+                options.log_enabled = true;
                 let path = &value["--log=".len()..];
                 if path.is_empty() {
-                    return Err(
-                        "--log= requires a non-empty path; use --log for the default".into(),
-                    );
+                    return Err("--log= requires a non-empty path; use --log for the default".into());
                 }
-                log_path = Some(path.into());
+                options.log_path = Some(path.into());
             }
             "--replace-peers" => {
-                replace_peers_interface = Some(
+                options.replace_peers_interface = Some(
                     args.next()
                         .ok_or("--replace-peers requires an interface name")?,
                 )
             }
-            "--reload" => reload_config_requested = true,
-            "--yes" | "-y" => yes = true,
+            "--reload" => options.reload_config_requested = true,
+            "--yes" | "-y" => options.yes = true,
             "--import" => {
                 let source = args.next().ok_or("--import requires a source .conf path")?;
                 let name = args.next().ok_or("--import requires an interface name")?;
-                import_args = Some((source.into(), name));
+                options.import_args = Some((source.into(), name));
             }
-            "-h" | "--help" => {
-                println!("Usage:\n  vpn-relay [--config PATH] [--check]\n  vpn-relay [--config PATH] --stats\n  vpn-relay [--config PATH] --replace-peers INTERFACE\n  vpn-relay [--config PATH] --reload\n  vpn-relay [--config PATH] --import WG.conf INTERFACE [--yes]\n  vpn-relay [--config PATH] [--background] [--log [PATH]]\n\nOptions:\n  -c, --config PATH  Configuration file (default: {DEFAULT_CONFIG})\n      --check        Validate configuration and exit\n      --stats        Print detailed live peer statistics\n      --background, -b  Run daemon in the background\n      --log [PATH]   Enable logging (default: {DEFAULT_LOG})\n      --replace-peers INTERFACE  Replace this interface peer set in a running daemon\n      --reload       Apply the complete config file to a running daemon\n      --import       Import WireGuard/AmneziaWG configuration\n  -y, --yes          Replace an existing interface without prompting");
-                return Ok(());
-            }
-            other => return Err(format!("unknown argument: {other}").into()),
+            "-h" | "--help" => return Ok(ParseResult::Help),
+            other => return Err(format!("unknown argument: {other}")),
         }
     }
+
+    let control_operations = options.check_only as usize
+        + options.stats_requested as usize
+        + options.reload_config_requested as usize
+        + options.replace_peers_interface.is_some() as usize
+        + options.import_args.is_some() as usize;
+    if control_operations > 1 {
+        return Err(
+            "--check, --stats, --reload, --replace-peers and --import are mutually exclusive"
+                .into(),
+        );
+    }
+    if options.background && control_operations != 0 {
+        return Err("--background can only be used when starting the daemon".into());
+    }
+    if options.log_enabled && control_operations != 0 {
+        return Err("--log can only be used when starting the daemon".into());
+    }
+    if options.yes && options.import_args.is_none() {
+        return Err("--yes can only be used with --import".into());
+    }
+
+    Ok(ParseResult::Options(options))
+}
+
+#[cfg(target_os = "linux")]
+pub fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let options = match parse_args(std::env::args().skip(1))? {
+        ParseResult::Help => {
+            print_help();
+            return Ok(());
+        }
+        ParseResult::Options(options) => options,
+    };
+    let CliOptions {
+        config_path,
+        check_only,
+        stats_requested,
+        background,
+        log_path,
+        log_enabled,
+        replace_peers_interface,
+        reload_config_requested,
+        import_args,
+        yes,
+    } = options;
 
     let control_operations = check_only as usize
         + stats_requested as usize
@@ -422,7 +494,94 @@ fn format_handshake(age: Option<u64>) -> String {
 mod tests {
     use super::*;
 
+#[test]
+    fn cli_parser_preserves_defaults_and_foreground_mode() {
+        let ParseResult::Options(options) = parse_args(Vec::<String>::new()).unwrap() else {
+            panic!("expected options");
+        };
+        assert_eq!(options.config_path, PathBuf::from(DEFAULT_CONFIG));
+        assert!(!options.background);
+        assert!(!options.log_enabled);
+        assert_eq!(options.log_path, None);
+    }
+
     #[test]
+    fn cli_parser_accepts_config_check_and_background_alias() {
+        let ParseResult::Options(options) = parse_args(
+            ["--config", "/tmp/vpn.toml", "--check"]
+                .into_iter().map(str::to_owned),
+        ).unwrap() else { panic!("expected options") };
+        assert_eq!(options.config_path, PathBuf::from("/tmp/vpn.toml"));
+        assert!(options.check_only);
+
+        let ParseResult::Options(options) =
+            parse_args(["-b"].into_iter().map(str::to_owned)).unwrap()
+        else { panic!("expected options") };
+        assert!(options.background);
+    }
+
+    #[test]
+    fn cli_parser_supports_both_log_forms_without_enabling_default_logging() {
+        let ParseResult::Options(default_log) =
+            parse_args(["--log"].into_iter().map(str::to_owned)).unwrap()
+        else { panic!("expected options") };
+        assert!(default_log.log_enabled);
+        assert_eq!(default_log.log_path, Some(PathBuf::from(DEFAULT_LOG)));
+
+        let ParseResult::Options(custom_log) = parse_args(
+            ["--log", "/tmp/vpn-relay.log"].into_iter().map(str::to_owned),
+        ).unwrap() else { panic!("expected options") };
+        assert_eq!(custom_log.log_path, Some(PathBuf::from("/tmp/vpn-relay.log")));
+
+        let ParseResult::Options(equals_log) = parse_args(
+            ["--log=/tmp/equals.log"].into_iter().map(str::to_owned),
+        ).unwrap() else { panic!("expected options") };
+        assert_eq!(equals_log.log_path, Some(PathBuf::from("/tmp/equals.log")));
+    }
+
+    #[test]
+    fn cli_parser_rejects_conflicting_operations_and_invalid_modifiers() {
+        let args = ["--stats", "--reload"].into_iter().map(str::to_owned);
+        assert!(parse_args(args).unwrap_err().contains("mutually exclusive"));
+        assert!(parse_args(["--background", "--stats"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("background"));
+        assert!(parse_args(["--log", "--check"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("--log"));
+        assert!(parse_args(["--yes"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("--yes"));
+        assert!(parse_args(["--log="].into_iter().map(str::to_owned))
+            .unwrap_err().contains("non-empty path"));
+    }
+
+    #[test]
+    fn cli_parser_handles_control_operation_arguments_and_help() {
+        let ParseResult::Options(options) = parse_args(
+            ["--replace-peers", "wg0"].into_iter().map(str::to_owned),
+        ).unwrap() else { panic!("expected options") };
+        assert_eq!(options.replace_peers_interface.as_deref(), Some("wg0"));
+
+        let ParseResult::Options(options) = parse_args(
+            ["--import", "client.conf", "wg0", "--yes"]
+                .into_iter().map(str::to_owned),
+        ).unwrap() else { panic!("expected options") };
+        assert_eq!(options.import_args, Some((PathBuf::from("client.conf"), "wg0".into())));
+        assert!(options.yes);
+        assert_eq!(parse_args(["--help"].into_iter().map(str::to_owned)).unwrap(), ParseResult::Help);
+    }
+
+    #[test]
+    fn cli_parser_reports_missing_values_and_unknown_arguments() {
+        assert!(parse_args(["--config"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("--config requires"));
+        assert!(parse_args(["--replace-peers"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("--replace-peers requires"));
+        assert!(parse_args(["--import", "client.conf"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("interface name"));
+        assert!(parse_args(["--unknown"].into_iter().map(str::to_owned))
+            .unwrap_err().contains("unknown argument"));
+    }
+
+        #[test]
     fn byte_counts_use_readable_decimal_units() {
         assert_eq!(format_bytes(0), "0 B");
         assert_eq!(format_bytes(999), "999 B");
