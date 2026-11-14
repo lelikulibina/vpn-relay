@@ -11,7 +11,7 @@ use crate::routing::RoutingPlan;
 use lock::InstanceLock;
 use state::{load_conntrack_mark_history, persist_conntrack_mark_history};
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::{Path, PathBuf};
