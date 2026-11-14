@@ -1,6 +1,6 @@
 //! iproute2 policy-routing lifecycle and ownership verification.
 
-use super::{run, LinuxError, ROUTING_PROTOCOL};
+use super::{output, run, LinuxError, ROUTING_PROTOCOL};
 use crate::routing::{RoutingPlan, FIRST_IP_RULE_PRIORITY, FIRST_ROUTING_TABLE};
 
 pub(super) fn rule_has_owned_identity(line: &str, mark: u32, table: &str) -> bool {
