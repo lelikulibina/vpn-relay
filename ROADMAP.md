@@ -174,4 +174,8 @@
 
 | Дата | Этап | Результат | Commit / CI |
 |---|---|---|---|
-| 2026-11-14 | Создание плана | ROADMAP добавлен в рабочую ветку | `57fd65f` |\n| 2026-11-14 | Control protocol extraction | Вынесены wire DTO и типы статистики из `runtime.rs` в `control.rs`; формат существующего протокола сохранён | `794f4f7` |\n| 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки. Первый CI прошёл quality, kernel compatibility, Podman и netns routing/firewall/NAT; после CLI extraction следующий CI выявил только rustfmt-порядок imports/modules, исправленный в этом commit. | [run 43547350227](https://github.com/lelikulibina/vpn-relay/actions/runs/43547350227) |\n| 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |\n| 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
+| 2026-11-14 | Создание плана | ROADMAP добавлен в рабочую ветку | `57fd65f` |
+| 2026-11-14 | Control protocol extraction | Вынесены wire DTO и типы статистики из `runtime.rs` в `control.rs`; формат существующего протокола сохранён | `794f4f7` |
+| 2026-11-14 | CI setup | Push-проверки включены для рабочей ветки. Первый CI прошёл quality, kernel compatibility, Podman и netns routing/firewall/NAT; после CLI extraction следующий CI выявил только rustfmt-порядок imports/modules, исправленный в этом commit. | [run 43547350227](https://github.com/lelikulibina/vpn-relay/actions/runs/43547350227) |
+| 2026-11-14 | CLI extraction | CLI вынесен из бинарного entrypoint в `cli.rs`; `main.rs` оставлен тонким запускателем | `ece223e` |
+| 2026-11-14 | Formatting fix | Исправлен порядок imports/modules по замечанию `cargo fmt --all --check` | текущий commit |
