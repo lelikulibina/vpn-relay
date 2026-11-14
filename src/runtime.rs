@@ -3,10 +3,7 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
-use crate::control::{
-    ControlApi, ControlError, ControlRequest, ControlResponse, ImportConfigRequest,
-    ReloadConfigMode, ReloadConfigRequest,
-};
+use crate::control::{ControlRequest, ControlResponse, ReloadConfigMode};
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError};
 use crate::routing::RoutingPlan;
@@ -19,14 +16,16 @@ use forwarding::*;
 use control_socket::*;
 use peers::*;
 use state::*;
-use std::fs::{self, File, OpenOptions};
-use std::io::Read;
+use std::fs;
 #[cfg(test)]
-use std::io::Write;
-use std::os::fd::AsRawFd;
+use std::fs::{File, OpenOptions};
+#[cfg(test)]
 use std::os::unix::fs::{FileTypeExt, MetadataExt, OpenOptionsExt, PermissionsExt};
+#[cfg(test)]
 use std::os::unix::net::{UnixListener, UnixStream};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+#[cfg(test)]
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
