@@ -24,6 +24,17 @@ jobs:
         with:
           components: rustfmt, clippy
       - name: Format
+        run: cargo fmt --all
+      - name: Commit rustfmt changes
+        run: |
+          if ! git diff --quiet -- src; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add src
+            git commit -m 'style: format typed nftables adapter'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi
+      - name: Verify format
         run: cargo fmt --all --check
       - name: Check
         run: cargo check --locked --all-targets
