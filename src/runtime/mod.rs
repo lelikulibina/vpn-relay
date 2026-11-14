@@ -13,6 +13,8 @@ use crate::control::{
 };
 #[cfg(test)]
 use crate::control::{ControlRequest, ControlResponse};
+#[cfg(test)]
+use crate::control::unix::ControlSocket;
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::control::unix::UnixClient;
 use crate::linux::{self, LinuxError};
