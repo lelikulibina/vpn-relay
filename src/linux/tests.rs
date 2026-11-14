@@ -1144,3 +1144,4 @@ fn recognizes_owned_default_routes_and_kernel_metadata() {
         "awg-primary"
     ));
 }
+
