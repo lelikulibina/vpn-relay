@@ -317,7 +317,6 @@ pub(super) fn render(plan: &RoutingPlan) -> String {
     output
 }
 
-
 fn firewall_rule_family_variants(
     rule: &NftFirewallRule,
     input: bool,
@@ -403,4 +402,3 @@ fn append_cidr_selector(
         ));
     }
 }
-
