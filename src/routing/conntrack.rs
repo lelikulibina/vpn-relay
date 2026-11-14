@@ -10,8 +10,8 @@ const LEGACY_CONNTRACK_MARK: u32 = 0x4000_0000;
 /// namespace, so a daemon restart with a changed config cannot reinterpret
 /// old conntrack entries as a different routing decision.
 pub(super) fn assign_stable_conntrack_marks(
-plan: &mut RoutingPlan,
-history: &mut Vec<RoutingDecision>,
+    plan: &mut RoutingPlan,
+    history: &mut Vec<RoutingDecision>,
 ) -> Result<(), String> {
     validate_conntrack_mark_history(history)?;
 
@@ -59,7 +59,7 @@ history: &mut Vec<RoutingDecision>,
 /// Reject corrupted or ambiguous persisted history instead of risking
 /// reuse of a mark that could still identify an older connection.
 pub(super) fn validate_conntrack_mark_history(
-history: &[RoutingDecision],
+    history: &[RoutingDecision],
 ) -> Result<(), String> {
     let mut used_marks = std::collections::BTreeSet::new();
     let mut keys = Vec::with_capacity(history.len());

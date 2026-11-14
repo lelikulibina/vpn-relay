@@ -566,7 +566,6 @@ impl Config {
         Ok(resolved)
     }
 
-
 }
 
 /// Decode a WireGuard key from standard Base64 and require exactly 32 bytes.

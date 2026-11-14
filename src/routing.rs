@@ -7,8 +7,8 @@
 use crate::config::{Config, FirewallProtocol, FirewallRule, NatAction, NatMode};
 use std::collections::BTreeMap;
 
-mod nft;
 mod conntrack;
+mod nft;
 
 pub(crate) const FIRST_ROUTING_TABLE: u32 = 10_000;
 pub(crate) const FIRST_IP_RULE_PRIORITY: u32 = 10_000;
