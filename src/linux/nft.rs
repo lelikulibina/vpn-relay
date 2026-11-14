@@ -117,7 +117,7 @@ pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_script)
 }
 
-fn apply_nft_with<I, R>(
+pub(super) fn apply_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
     run_script: &mut R,
@@ -185,7 +185,7 @@ pub fn remove_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     remove_nft_with(plan, &mut inspect_nft_table, &mut run)
 }
 
-fn remove_nft_with<I, R>(
+pub(super) fn remove_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
     run_command: &mut R,
