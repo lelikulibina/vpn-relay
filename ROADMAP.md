@@ -91,7 +91,7 @@
 
 - [x] Разобрать ответственность `linux.rs`; выделены два самостоятельных адаптера `linux/nftables.rs` и `linux/policy_routing.rs`, без дальнейшего дробления интерфейсных/netlink helpers.
 - [x] Сохранить единый общий исполнитель системных команд `run` и общую обработку `LinuxError`; специализированные nft/iproute2 операции вынесены в adapters.
-- [x] Разделить policy routing и nftables на самостоятельные модули; interface identity и rtnetlink пока остаются вместе в `linux.rs`, поскольку тесно связаны с TUN/link lifecycle.
+- [x] Разделить policy routing и nftables на самостоятельные модули; interface identity и TUN lifecycle остаются в `linux.rs`; rtnetlink encoding/parsing и per-interface forwarding вынесены в `linux/netlink.rs`.
 - [x] Сохранить проверки fd/ifindex и запрет доверять одному лишь имени интерфейса (перенос не затрагивал эти функции).
 - [x] Сохранить ownership-safe checks и cleanup для nftables и iproute2; существующие проверки перенесены без изменения семантики.
 - [x] Сохранить обработку ошибок, readback/verification и rollback; функциональность не менялась.
@@ -109,7 +109,7 @@
 - [x] Установить фактический механизм: typed JSON batch применяется через `nft -j -f -`; системная зависимость от executable сохранена и документирована.
 - [x] Добавить serialization/render tests и packet-level regression coverage для нормализованной семантики.
 - [x] Проверить failure paths и поведение при частичной/неуспешной операции, включая JSON transaction failure injection.
-- [x] Старый text generator удалён из production path; `RoutingPlan::nft_script()` оставлен как facade над JSON renderer.
+- [x] Старый text generator больше не используется production apply path; `RoutingPlan::nft_script()` сохранён как legacy text compatibility facade, а production применяет typed JSON renderer.
 - [x] Полный CI run `43590622050` прошёл: 185 unit tests, Ubuntu 22.04/24.04, Podman, routing/firewall/NAT, WG, AWG и multi-uplink.
 
 ## Этап 4. Routing

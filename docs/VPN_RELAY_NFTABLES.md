@@ -8,7 +8,8 @@
 - `src/routing/nft.rs` и `src/routing/nft_json.rs` — генерация policy через типы `nftables` crate 0.6.3; локальные копии schema-типов не создаются.
 - `src/linux/nftables.rs` — применение JSON batch, ownership checks, atomic replacement/removal и rollback через `nft -j -f -`.
 - `src/linux/policy_routing.rs` — применение и cleanup iproute2 policy routing с ownership checks.
-- `src/linux.rs` — общие Linux-команды, interface identity, TUN link и rtnetlink.
+- `src/linux.rs` — общие Linux-команды, interface identity и TUN link.
+- `src/linux/netlink.rs` — rtnetlink ACK/readback и per-interface IPv4 forwarding.
 - `src/runtime.rs`, `src/runtime/lifecycle.rs`, `src/runtime/reload.rs` и остальные `src/runtime/` модули — startup, event loop/shutdown, transactional reload, control socket/API, peer transactions, state и forwarding recovery.
 - `src/backend/` — backend-neutral lifecycle и BoringTun WG/AWG backend.
 

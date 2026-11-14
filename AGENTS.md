@@ -69,8 +69,9 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/routing/nft_json.rs` — typed nftables 0.6.3 schema construction and narrowly scoped JSON patch for `iface_index`.
 - `src/routing/tests.rs` — routing plan и conntrack regression tests.
 - `src/routing/nft.rs` — чистая генерация fail-closed nftables policy из `RoutingPlan`; метод `RoutingPlan::nft_script` сохранён как совместимый facade.
-- `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration, rtnetlink per-interface IPv4 forwarding и общая ошибка `LinuxError`.
-- `src/linux/tests.rs` — Linux adapter и interface identity regression tests.
+- `src/linux.rs` — общий Linux adapter: выполнение `ip`, interface identity, TUN link configuration и общая ошибка `LinuxError`.
+- `src/linux/netlink.rs` — rtnetlink link attribute encoding/parsing, extended ACK, IPv4 forwarding readback/set по ifindex с identity checks.
+- `src/linux/tests.rs` — Linux adapter, rtnetlink и interface identity regression tests.
 - `src/linux/nftables.rs` — adapter применения typed nftables JSON batch, ownership checks, atomic table replacement/removal и rollback. Применение остаётся через системный `nft -j -f -`, потому что crate 0.6.3 сам вызывает этот executable.
 - `src/linux/policy_routing.rs` — iproute2 policy-routing allocation/apply/cleanup, ownership checks и rollback. Использует общий `run` и `LinuxError` из родительского Linux adapter.
 - `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
@@ -119,7 +120,7 @@ CLI (`main.rs` -> `cli.rs`)
             ├── nftables
             ├── iproute2 policy routing
             ├── TUN link setup / identity
-            ├── rtnetlink
+            ├── rtnetlink (`linux/netlink.rs`)
             └── sysctl (через runtime)
 ```
 
@@ -265,7 +266,7 @@ Release workflow запускается по тегам `vpn-relay-v*`, свер
 
 Это не список ошибок datapath, а точки, которые повышают стоимость сопровождения:
 - `runtime.rs` декомпозирован на startup orchestration и отдельные модули control API/socket, lifecycle, reload, peers, state и forwarding; регрессионные тесты остаются в `runtime/tests.rs`.
-- `linux.rs` остаётся общей точкой для process execution, link identity, TUN lifecycle и rtnetlink; специализированные nftables и iproute2 операции вынесены в adapters.
+- `linux.rs` остаётся общей точкой для process execution, link identity и TUN lifecycle; rtnetlink, nftables и iproute2 вынесены в отдельные adapters.
 - `config.rs` разделяет schema/defaults/reload compatibility от `config/endpoint.rs`, `config/validation.rs` и `config/tests.rs`.
 - `routing.rs` строит plan; conntrack history и nftables JSON generation находятся в `routing/conntrack.rs`, `routing/nft.rs` и `routing/nft_json.rs`.
 - `import.rs` координирует import/merge/validation/atomic persistence; parsing WG/AWG вынесен в `import/parser.rs`.
