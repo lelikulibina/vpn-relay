@@ -57,7 +57,10 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
     } else {
         Err(LinuxError::Conflict {
             resource: format!("nft table {} {}", plan.nft_family, plan.nft_table),
-            details: "table exists but its vpn_relay_owner marker rule is absent or invalid".into(),
+            details: format!(
+                "table exists but its vpn_relay_owner marker rule is absent or invalid; nft JSON: {}",
+                json.trim()
+            ),
         })
     }
 }

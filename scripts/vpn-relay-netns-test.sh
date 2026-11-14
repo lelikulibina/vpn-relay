@@ -314,10 +314,14 @@ exec "$REAL_IP_CONFIG" "\$@"
 EOF
 cat >"$TMP/fail-interface-and-nft-cleanup/nft" <<EOF
 #!/bin/sh
-if [ "\$1" = "delete" ] && [ "\$2" = "table" ] \\
-    && [ "\$3" = "inet" ] && [ "\$4" = "vpn_relay_it" ]; then
-    echo "injected nftables deletion failure during startup rollback" >&2
-    exit 43
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ]; then
+    payload=\$(cat)
+    if grep -Fq '"delete"' <<<"\$payload" && grep -Fq '"table"' <<<"\$payload" \\
+        && grep -Fq 'vpn_relay_it' <<<"\$payload"; then
+        echo "injected nftables deletion failure during startup rollback" >&2
+        exit 43
+    fi
+    printf '%s' "\$payload" | exec "$REAL_NFT_CLEANUP" "\$@"
 fi
 exec "$REAL_NFT_CLEANUP" "\$@"
 EOF
