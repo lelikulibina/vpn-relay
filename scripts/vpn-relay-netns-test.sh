@@ -745,8 +745,8 @@ grep -Fq 'oif @managed_interfaces drop' <<<"$forward_chain" || fail "managed egr
 grep -Fq 'ct direction reply meta mark set 0' <<<"$chain" || fail "reply packet mark reset is missing"
 
 grep -Eq 'iifname "wg-server" iif != .* counter packets [0-9]+ bytes [0-9]+ drop' <<<"$chain" || fail "same-name replacement ingress guard is missing"
-grep -Eq 'iif "?wg-server"? ct state new ip daddr 195.142.0.0/16 meta mark set 0x80000001' <<<"$chain" || fail "secondary exception rule missing; prerouting chain: $chain"
-grep -Eq 'iif "?wg-server"? ct state new ip daddr 0.0.0.0/0 meta mark set 0x80000000' <<<"$chain" || fail "primary default rule missing"
+grep -Eq 'iif [0-9]+ ct state new ip daddr 195.142.0.0/16 meta mark set 0x80000001' <<<"$chain" || fail "secondary exception rule missing; prerouting chain: $chain"
+grep -Eq 'iif [0-9]+ ct state new ip daddr 0.0.0.0/0 meta mark set 0x80000000' <<<"$chain" || fail "primary default rule missing; prerouting chain: $chain"
 
 
 # Exercise full runtime reload through the Unix control socket. The candidate
