@@ -14,7 +14,6 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         stats_requested,
         background,
         log_path,
-        log_enabled,
         replace_peers_interface,
         reload_config_requested,
         import_args,
