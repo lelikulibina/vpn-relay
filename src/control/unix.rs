@@ -172,11 +172,11 @@ impl UnixTransport {
                 Ok(request) => dispatch::handle(api, request),
                 Err(error) => {
                     dispatch::invalid_request(format!("invalid control request: {error}"))
-                },
+                }
             },
             Err(error) => {
                 dispatch::invalid_request(format!("failed to read control request: {error}"))
-            },
+            }
         };
 
         let write_result = serde_json::to_vec(&response)
