@@ -46,6 +46,31 @@ fn add_rule(
     )
 }
 
+fn add_owner_marker(batch: &mut Batch<'static>, plan: &RoutingPlan) -> Result<(), String> {
+    add_object(
+        batch,
+        json!({
+            "chain": {
+                "family": plan.nft_family,
+                "table": plan.nft_table,
+                "name": "vpn_relay_owner",
+            }
+        }),
+    )?;
+    add_object(
+        batch,
+        json!({
+            "rule": {
+                "family": plan.nft_family,
+                "table": plan.nft_table,
+                "chain": "vpn_relay_owner",
+                "expr": [return_verdict()],
+                "comment": OWNERSHIP_COMMENT,
+            }
+        }),
+    )
+}
+
 fn add_chain(
     batch: &mut Batch<'static>,
     plan: &RoutingPlan,
@@ -466,9 +491,6 @@ fn serialize_batch(
         .and_then(Value::as_array_mut)
         .ok_or_else(|| "serialized nftables batch has no nftables array".to_owned())?;
     for object in objects {
-        if let Some(table) = object.get_mut("add").and_then(|add| add.get_mut("table")) {
-            table["comment"] = json!(OWNERSHIP_COMMENT);
-        }
         if patch_interface_index {
             if let Some(set) = object.get_mut("add").and_then(|add| add.get_mut("set")) {
                 let name = set.get("name").and_then(Value::as_str);
@@ -491,6 +513,7 @@ pub(super) fn render(plan: &RoutingPlan, replace_owned: bool) -> Result<String, 
         batch.delete(table.clone());
     }
     batch.add(table);
+    add_owner_marker(&mut batch, plan)?;
     add_managed_interface_set(&mut batch, plan)?;
     add_chain(&mut batch, plan, "prerouting", "filter", "prerouting", -150)?;
     add_chain(&mut batch, plan, "input", "filter", "input", 0)?;
@@ -698,7 +721,7 @@ pub(super) fn render(plan: &RoutingPlan, replace_owned: bool) -> Result<String, 
         append_nat_rule(&mut batch, plan, decision)?;
     }
 
-    serialize_batch(batch, plan, plan.interface_indices.is_some())
+    serialize_batch(batch, plan.interface_indices.is_some())
 }
 
 pub(super) fn delete_table(plan: &RoutingPlan) -> Result<String, String> {
@@ -706,5 +729,5 @@ pub(super) fn delete_table(plan: &RoutingPlan) -> Result<String, String> {
     batch.delete(parse_object(json!({
         "table": { "family": plan.nft_family, "name": plan.nft_table }
     }))?);
-    serialize_batch(batch, plan, false)
+    serialize_batch(batch, false)
 }

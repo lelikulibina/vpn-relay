@@ -5,7 +5,7 @@ use crate::linux;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub(super) fn read_sysctl(key: &str) -> Result<String, RuntimeError> {
     let output = std::process::Command::new("sysctl")

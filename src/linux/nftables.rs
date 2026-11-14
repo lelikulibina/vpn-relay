@@ -6,54 +6,29 @@ use serde_json::Value;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-/// Return true only when the nftables table object itself carries our ownership marker.
+/// Return true only when the table contains vpn-relay's inert owner marker rule.
 pub(super) fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
     let Ok(document) = serde_json::from_str::<Value>(json) else {
         return false;
     };
-    document
-        .get("nftables")
-        .and_then(Value::as_array)
-        .is_some_and(|items| {
-            items.iter().any(|item| {
-                let Some(table) = item.get("table") else {
-                    return false;
-                };
-                table.get("family").and_then(Value::as_str) == Some(family)
-                    && table.get("name").and_then(Value::as_str) == Some(name)
-                    && table.get("comment").and_then(Value::as_str) == Some("managed by vpn-relay")
-            })
+    let Some(items) = document.get("nftables").and_then(Value::as_array) else {
+        return false;
+    };
+    let table_exists = items.iter().any(|item| {
+        item.get("table").is_some_and(|table| {
+            table.get("family").and_then(Value::as_str) == Some(family)
+                && table.get("name").and_then(Value::as_str) == Some(name)
         })
-}
-
-/// Older nftables releases omit table comments from JSON output. Fall back to
-/// the human-readable representation, but accept only the table-level comment
-/// (four-space indentation), never a similarly named comment inside a chain.
-pub(super) fn table_is_owned_text(output: &str, family: &str, name: &str) -> bool {
-    let expected_header = format!("table {family} {name} {{");
-    let expected_comment = "comment \"managed by vpn-relay\"";
-    let mut in_table = false;
-
-    for line in output.lines() {
-        if !in_table {
-            in_table = line.trim() == expected_header;
-            continue;
-        }
-
-        // The table's closing brace is the only closing brace at column zero.
-        if line.starts_with('}') {
-            return false;
-        }
-
-        // nftables 1.0.2 prints tabs; newer releases commonly print spaces.
-        let top_level_indentation = (line.starts_with('\t') && !line.starts_with("\t\t"))
-            || (line.starts_with("    ") && !line.starts_with("        "));
-        if top_level_indentation && line.trim() == expected_comment {
-            return true;
-        }
-    }
-
-    false
+    });
+    let marker_exists = items.iter().any(|item| {
+        item.get("rule").is_some_and(|rule| {
+            rule.get("family").and_then(Value::as_str) == Some(family)
+                && rule.get("table").and_then(Value::as_str) == Some(name)
+                && rule.get("chain").and_then(Value::as_str) == Some("vpn_relay_owner")
+                && rule.get("comment").and_then(Value::as_str) == Some("managed by vpn-relay")
+        })
+    });
+    table_exists && marker_exists
 }
 
 fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
@@ -78,42 +53,16 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
 
     let json = String::from_utf8_lossy(&existing.stdout);
     if table_is_owned(&json, &plan.nft_family, &plan.nft_table) {
-        return Ok(true);
-    }
-
-    // nftables 1.0.2 (Ubuntu 22.04) accepts table comments but does not expose
-    // them in JSON. Require the exact table header and a top-level comment
-    // before considering the table daemon-owned.
-    let textual = Command::new("nft")
-        .args(["list", "table", &plan.nft_family, &plan.nft_table])
-        .output()
-        .map_err(|source| LinuxError::Spawn {
-            program: "nft".into(),
-            source,
-        })?;
-    if !textual.status.success() {
-        return Err(LinuxError::Command {
-            program: "nft list table".into(),
-            status: textual.status.to_string(),
-            stderr: String::from_utf8_lossy(&textual.stderr).trim().into(),
-        });
-    }
-    if table_is_owned_text(
-        &String::from_utf8_lossy(&textual.stdout),
-        &plan.nft_family,
-        &plan.nft_table,
-    ) {
         Ok(true)
     } else {
         Err(LinuxError::Conflict {
             resource: format!("nft table {} {}", plan.nft_family, plan.nft_table),
-            details: "table exists but its table-level ownership marker is absent or invalid"
-                .into(),
+            details: "table exists but its vpn_relay_owner marker rule is absent or invalid".into(),
         })
     }
 }
 
-/// Replace only a table whose table-level metadata proves ownership.
+/// Replace only a table whose dedicated owner marker rule proves ownership.
 pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_json)
 }

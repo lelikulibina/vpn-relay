@@ -16,7 +16,6 @@ use control_socket::*;
 use forwarding::*;
 use peers::*;
 use state::*;
-use std::fs;
 #[cfg(test)]
 use std::fs::{File, OpenOptions};
 #[cfg(test)]

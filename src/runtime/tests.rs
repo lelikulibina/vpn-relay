@@ -1,4 +1,6 @@
 use super::*;
+use std::fs;
+use std::path::PathBuf;
 
 #[test]
 fn unmanaged_forwarding_treats_any_nonzero_value_as_enabled() {
