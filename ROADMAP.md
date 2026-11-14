@@ -28,7 +28,7 @@
 - [x] Зафиксировать исходный commit и состояние рабочей ветки: `daemon-improvements` на `cff0e57747fc0d4238ecadb3519fe9f55ad41725`; рабочая ветка создана отдельно.
 - [x] Изучить `AGENTS.md`, README и NFTables documentation; первично изучены основные исходники. Детальный аудит каждого затрагиваемого участка продолжается перед соответствующим этапом.
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
-- [x] Инвентаризировать unit-, integration- и shell-тесты: 180 inline unit tests в Rust-модулях и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
+- [x] Инвентаризировать unit-, integration- и shell-тесты: 181 unit tests в Rust-модулях (тесты пока в основном inline) и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
 - [x] Проверить текущие CLI и control socket protocol: `get_stats`, `reload_config`, `replace_peers`; CLI-потребители найдены в `main.rs`. Решение по сохранению peer replacement ещё требует отдельного проектирования.
 - [ ] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
 - [ ] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
@@ -36,6 +36,16 @@
 - [ ] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback.
 
 ### Первичные результаты аудита
+
+### Прогресс текущей ветки (2026-11-14)
+
+- `src/main.rs` преобразован в тонкий entrypoint; CLI живёт в `src/cli.rs`.
+- Control API реализован с тремя операциями; Unix wire adapter вынесен в `src/control/unix.rs`. `replace_peers` не является четвёртой API-операцией: он выражен режимом `reload_config`.
+- Импорт в работающий Runtime строит кандидат из содержимого профиля и применяет его через reload; исходный файл конфигурации не переписывается этим API. Существующий offline CLI import остаётся файловой операцией.
+- CI run `43549664605` для commit `fcf97a8512adae8c6f02674a32caf28ce3ab6b1d` завершился success: format, check, clippy, 181 unit tests, kernel compatibility Ubuntu 22.04/24.04, Podman, netns routing/firewall/NAT, WG traffic, AWG traffic и multi-uplink.
+- Локальные команды в среде разработки не выполнялись; проверки подтверждены GitHub Actions.
+
+## Первичные результаты аудита
 
 - В исходном `Cargo.toml` crate `nftables` отсутствует. Текущий генератор находится в `RoutingPlan::nft_script()`, применение — в Linux adapter через `nft -f -`.
 - Ownership текущей nft table опирается на table-level comment `managed by vpn-relay`; это часть защитной модели и должно сохраниться.
@@ -104,21 +114,21 @@
 ## Этап 6. Control API и Unix transport
 
 - [ ] Проверить все существующие socket operations и их потребителей до изменения протокола.
-- [ ] Определить транспортно-независимые request/response/error types и границы application API.
-- [ ] Реализовать ровно три согласованные операции: `reload_config`, `get_stats`, `import_config`.
-- [ ] Перенести общую логику операций в Control API/application services; не дублировать её в транспорте.
-- [ ] Сохранить Unix Domain Socket как транспорт поверх Control API.
-- [ ] Реализовать/сохранить Unix server и client; CLI использует client для управления работающим демоном.
-- [ ] Сохранить protocol versioning, безопасную сериализацию, обработку malformed/unknown requests и disconnects.
-- [ ] Сохранить socket ownership, permissions, anti-symlink/replacement safeguards и namespace isolation.
+- [x] Определить транспортно-независимые request/error types и границы application API.
+- [x] Реализовать ровно три согласованные операции: `reload_config`, `get_stats`, `import_config`.
+- [x] Перенести общую логику операций в `ControlApi` implementation для Runtime; транспорт только вызывает API.
+- [x] Сохранить Unix Domain Socket как транспорт поверх Control API.
+- [x] Выделить Unix server/client в `src/control/unix.rs`; CLI использует client через Runtime.
+- [ ] Проверить необходимость protocol versioning; сохранены tagged JSON requests, лимит 1 MiB, read/write timeout и ошибки malformed/unknown requests. Version field не вводился, чтобы не ломать существующий wire protocol.
+- [x] Сохранить существующие socket ownership, permissions, anti-symlink/replacement safeguards и namespace isolation.
 - [ ] Проверить конкурентные запросы, shutdown transport и ошибки отдельно на уровнях API и транспорта.
 - [ ] Удалить/заменить старые операции (включая peer replacement) только после аудита потребителей и определения корректного способа сохранения нужной функциональности.
-- [ ] Не реализовывать HTTP сейчас; проверить, что API не зависит от Unix-specific типов.
+- [x] Не реализовывать HTTP; `ControlApi` и application DTO не зависят от Unix-specific типов.
 - [ ] Выполнить Control API unit и Unix socket integration tests.
 
 ## Этап 7. CLI, logging и пользовательская совместимость
 
-- [ ] Разделить CLI parsing/dispatch/output умеренно, без создания модулей ради отдельных функций.
+- [x] Вынести CLI parsing/dispatch/output в отдельный `src/cli.rs`; `src/main.rs` оставлен тонким entrypoint.
 - [ ] Сохранить foreground по умолчанию и `--background`/`-b`.
 - [ ] Сохранить logging disabled by default; `--log` без пути и `--log PATH` должны работать как прежде.
 - [ ] Сохранить `--stats` через Control API и человекочитаемую таблицу; не добавлять JSON или периодический вывод.
