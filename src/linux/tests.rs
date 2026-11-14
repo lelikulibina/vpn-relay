@@ -1,4 +1,5 @@
 use super::*;
+use super::nft::{table_is_owned, table_is_owned_text};
 
 fn cleanup_test_plan() -> RoutingPlan {
     RoutingPlan {
