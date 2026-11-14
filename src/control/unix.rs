@@ -173,7 +173,10 @@ mod tests {
     }
 
     impl ControlApi for RecordingApi {
-        fn reload_config(&mut self, _request: ReloadConfigRequest) -> Result<(), super::super::ControlError> {
+        fn reload_config(
+            &mut self,
+            _request: ReloadConfigRequest,
+        ) -> Result<(), super::super::ControlError> {
             self.calls.push("reload_config");
             Ok(())
         }
@@ -182,7 +185,10 @@ mod tests {
             Ok(Vec::new())
         }
 
-        fn import_config(&mut self, request: ImportConfigRequest) -> Result<ImportReport, super::super::ControlError> {
+        fn import_config(
+            &mut self,
+            request: ImportConfigRequest,
+        ) -> Result<ImportReport, super::super::ControlError> {
             self.calls.push("import_config");
             Ok(ImportReport {
                 tunnel_type: TunnelType::WireGuard,
