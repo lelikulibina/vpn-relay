@@ -111,3 +111,4 @@ jobs:
             --sysctl net.ipv4.conf.eth0.forwarding=0 \
             --env HOST_NETNS_INODE="$host_netns_inode" \
             vpn-relay-podman-test
+
