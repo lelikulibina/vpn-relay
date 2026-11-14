@@ -76,4 +76,3 @@ fn valid_ascii_dns_name(host: &str) -> bool {
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
     })
 }
-
