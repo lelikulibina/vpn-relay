@@ -731,3 +731,4 @@ pub(super) fn delete_table(plan: &RoutingPlan) -> Result<String, String> {
     serialize_batch(batch, false)
 }
 
+
