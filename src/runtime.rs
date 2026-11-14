@@ -984,10 +984,7 @@ impl Runtime {
 
     /// Replace only the peer set of one interface, preserving the legacy
     /// semantics while using the reload_config application operation.
-    pub fn request_peer_replacement(
-        interface: String,
-        toml: String,
-    ) -> Result<(), RuntimeError> {
+    pub fn request_peer_replacement(interface: String, toml: String) -> Result<(), RuntimeError> {
         Self::send_control_request(ControlRequest::ReloadConfig {
             toml,
             mode: ReloadConfigMode::ReplacePeers { interface },
@@ -1075,8 +1072,8 @@ impl ControlApi for Runtime {
             ReloadConfigMode::ReplacePeers { interface } => {
                 let imported = parsed.interfaces.get(&interface).ok_or_else(|| {
                     ControlError::new(format!(
-            "interface '{interface}' is missing from supplied configuration"
-        ))
+                        "interface '{interface}' is missing from supplied configuration"
+                    ))
                 })?;
                 let mut candidate = self.config.clone();
                 let target = candidate
