@@ -162,9 +162,8 @@ pub(crate) fn send_unix_request(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::import::ImportReport;
     use crate::config::TunnelType;
-    use std::io::Read;
+    use std::io::{Read, Write};
     use std::net::Shutdown;
     use std::thread;
 
