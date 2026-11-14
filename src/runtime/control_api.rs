@@ -53,4 +53,3 @@ impl ControlApi for Runtime {
         Ok(report)
     }
 }
-
