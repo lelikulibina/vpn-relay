@@ -17,7 +17,7 @@
 - Runtime поддерживает startup, graceful shutdown, конфигурационный reload, замену peer set, получение статистики по запросу и восстановление части системного состояния после аварийного завершения.
 - Демон может работать в foreground (по умолчанию) или background (`--background` / `-b`). systemd unit и другие service units проектом пока не устанавливаются.
 - Логирование выключено по умолчанию. `--log` включает файл `/var/log/vpn-relay.log`, `--log PATH` задаёт свой путь.
-- Управление работающим экземпляром идёт через локальный Unix domain socket. Текущие операции: `--stats`, `--reload`, `--replace-peers`.
+- Управление работающим экземпляром идёт через локальный Unix domain socket. CLI-команды управления: `--stats`, `--reload`, `--replace-peers`; на уровне Control API существуют три операции `get_stats`, `reload_config`, `import_config`, а peer replacement — режим `reload_config`.
 
 Не предполагайте поддержку IPv6, Windows, rootless Podman, host-network deployment, systemd installation, Web UI, REST API, отдельных web-пользователей, команды stop/status или автоматического failover между uplink, если соответствующая реализация явно не появилась в коде.
 
@@ -53,13 +53,16 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 
 ### Rust-код
 
-- `src/main.rs` — CLI entry point, разбор аргументов вручную, режимы foreground/background, настройка файлового логирования, форматирование табличной статистики.
+- `src/cli.rs` — тонкий platform entry point; Linux вызывает `vpn_relay::cli::run()`, не-Linux сообщает о неподдерживаемой платформе.
+- `src/cli.rs` — ручной разбор аргументов, foreground/background, настройка файлового логирования, табличная статистика и CLI dispatch. Операции управления работающим daemon вызывают Unix client через Runtime.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
 - `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
 - `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
 - `src/routing.rs` — backend-independent routing plan: egress resources, routing decisions, marks, генерация nftables script и команд iproute2, unit tests.
 - `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
-- `src/runtime.rs` — orchestration и lifecycle: instance lock, Unix control socket, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
+- `src/control.rs` — transport-independent `ControlApi`, request/error contracts и stats DTO. Ровно три операции: `reload_config`, `get_stats`, `import_config`; `ReloadConfigMode::ReplacePeers` сохраняет прежний peer-only сценарий внутри reload.
+- `src/control/unix.rs` — Unix Domain Socket wire DTO, JSON framing, лимиты, timeout, server adapter и client. Не содержит бизнес-логики; вызывает `ControlApi`.
+- `src/runtime.rs` — orchestration и lifecycle: instance lock, подключение Unix socket к Control API, startup/shutdown, reload/peer replacement transactions, snapshots/stats, signal handling, sysctl forwarding ownership, durable state/journal и runtime tests.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
 
@@ -83,9 +86,9 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 Высокоуровневое направление зависимостей:
 
 ```text
-CLI (main.rs)
+CLI (main.rs -> cli.rs)
   ├── Config / Import
-  └── Runtime
+  └── Runtime -> Unix socket client -> Control API
        ├── BackendRegistry
        │    └── BoringTunBackend -> boringtun-awg Device API
        ├── RoutingPlan
@@ -100,6 +103,10 @@ CLI (main.rs)
 Конфигурация преобразуется в `Config`, валидируется, затем backend делает preflight (включая разрешение peer endpoint DNS в IPv4 адреса). Runtime поднимает fail-closed bootstrap nft policy до создания TUN, создаёт и проверяет tunnel handles, настраивает link, заменяет bootstrap policy на numeric-ifindex policy, устанавливает policy routes и при необходимости управляет IPv4 forwarding. Только после успешного завершения стадий runtime становится рабочим.
 
 BoringTun backend создаёт устройство с отключённым UAPI, задаёт private key/fwmark и полный peer set. `TunnelHandle` скрывает backend от orchestration; snapshots переводят данные движка в backend-neutral типы.
+
+### Control plane
+
+`ControlApi` определяет три транспортно-независимые application operations: `reload_config`, `get_stats`, `import_config`. Runtime реализует этот интерфейс. Unix transport в `control/unix.rs` отвечает за JSON wire format, framing, socket I/O и лимиты, но не за применение конфигурации. CLI использует client adapter. Импорт в работающий daemon передаёт содержимое профиля, а не произвольный filesystem path; офлайн CLI import по-прежнему пишет конфигурацию атомарно. `--replace-peers` сериализуется как режим `reload_config` и меняет только peer set целевого интерфейса.
 
 ### Routing и packet path
 
