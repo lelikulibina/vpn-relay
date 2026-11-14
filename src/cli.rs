@@ -147,7 +147,8 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
                 config_path.display()
             )
         })?;
-        Runtime::request_peer_replacement(interface_name.clone(), interface.peers.clone())?;
+        let toml = std::fs::read_to_string(&config_path)?;
+        Runtime::request_config_reload(toml)?;
         println!("Peer set for interface '{interface_name}' replaced successfully.");
         return Ok(());
     }
