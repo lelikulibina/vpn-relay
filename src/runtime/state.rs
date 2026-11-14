@@ -68,7 +68,6 @@ impl InstanceLock {
     }
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ConntrackMarkStateFile {
