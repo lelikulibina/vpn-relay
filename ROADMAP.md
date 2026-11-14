@@ -30,8 +30,8 @@
 - [x] Составить первичную карту крупных модулей и зависимостей по `AGENTS.md` и дереву репозитория.
 - [x] Инвентаризировать unit-, integration- и shell-тесты: 183 unit tests на последнем полностью зелёном branch-head CI; тесты размещены в отдельных child modules без удаления assertions и 6 shell integration scripts; подробная привязка каждого сценария к инвариантам продолжается.
 - [x] Проверить CLI и control socket protocol: `ControlApi` имеет три операции (`get_stats`, `reload_config`, `import_config`); peer-only replacement — режим `reload_config`. CLI находится в `src/cli.rs`.
-- [ ] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
-- [ ] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
+- [x] Изучить текущий Cargo dependency graph и API выбранной версии `nftables`.
+- [x] Зафиксировать фактический набор nftables expressions/objects и способ применения правил (включая зависимость от системного `nft`, если она есть).
 - [x] Проверить baseline CI: commit `cff0e57747fc0d4238ecadb3519fe9f55ad41725` прошёл GitHub Actions run `43540974390` (success). Локальный запуск из текущей среды пока не выполнен.
 - [ ] Зафиксировать эталонную семантику firewall/routing и порядок startup/reload/rollback.
 
@@ -100,7 +100,7 @@
 
 ## Этап 3. NFTables migration
 
-- [ ] Проверить API и ограничения конкретной версии crate `nftables`.
+- [x] Проверить API и ограничения конкретной версии crate `nftables`.
 - [ ] Сопоставить все используемые проектом объекты и выражения с типами библиотеки.
 - [ ] Реализовать единый локальный адаптер построения/применения NFTables без дублирования schema.
 - [ ] Сохранить точные chains, hooks, priorities, marks, conntrack, sets, verdicts и NAT (если используется).

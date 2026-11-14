@@ -1,6 +1,36 @@
 //! Durable forwarding state and sysctl recovery for the Linux runtime.
 
-use super::{ForwardingState, ForwardingStateFile, InterfaceForwardingState, RuntimeError};
+use super::RuntimeError;
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
+pub(super) struct ForwardingState {
+    pub(super) ipv4: String,
+    pub(super) ipv4_changed: bool,
+    /// Per-link state is optional so version-1 namespace-only journals remain readable.
+    #[serde(default)]
+    pub(super) interfaces: Vec<InterfaceForwardingState>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Eq, PartialEq)]
+pub(super) struct InterfaceForwardingState {
+    pub(super) name: String,
+    pub(super) ifindex: u32,
+    /// True when this link is created and destroyed by vpn-relay's TUN backend.
+    #[serde(default)]
+    pub(super) daemon_owned: bool,
+    ipv4: String,
+    ipv4_changed: bool,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ForwardingStateFile {
+    pub(super) version: u32,
+    pub(super) namespace_inode: u64,
+    pub(super) state: ForwardingState,
+}
+
+
 use crate::linux;
 use std::fs::{self, File, OpenOptions};
 use std::io::Read;
