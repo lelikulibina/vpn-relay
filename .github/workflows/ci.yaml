@@ -25,23 +25,20 @@ jobs:
           components: rustfmt, clippy
       - name: Format
         run: cargo fmt --all
-      - name: Commit rustfmt changes
-        run: |
-          if ! git diff --quiet -- src; then
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add src
-            git commit -m 'style: format typed nftables adapter'
-            git push origin "HEAD:${GITHUB_REF_NAME}"
-          fi
+      - name: Export rustfmt diff
+        run: git diff -- src
       - name: Verify format
         run: cargo fmt --all --check
-      - name: Check
-        run: cargo check --locked --all-targets
+      - name: Check and export lockfile diff
+        run: |
+          status=0
+          cargo check --all-targets || status=$?
+          git diff -- Cargo.lock
+          exit "$status"
       - name: Clippy
-        run: cargo clippy --locked --all-targets
+        run: cargo clippy --all-targets
       - name: Unit tests
-        run: cargo test --locked --all-targets
+        run: cargo test --all-targets
   kernel-compatibility:
     name: Kernel compatibility (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -58,7 +55,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iproute2 nftables iputils-ping
       - name: Build daemon
-        run: cargo build --locked 
+        run: cargo build 
       - name: Per-interface forwarding ACK, readback and recovery
         run: sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh
       - name: Packet forwarding and IPv6 drop on managed TUN
@@ -76,9 +73,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y iproute2 nftables iputils-ping tcpdump iperf3
       - name: Build daemon
-        run: cargo build --locked 
+        run: cargo build 
       - name: Validate example configuration
-        run: cargo run --locked -- --config vpn-relay.example.toml --check
+        run: cargo run -- --config vpn-relay.example.toml --check
       - name: Network namespace routing/firewall/NAT test
         run: sudo bash scripts/vpn-relay-netns-test.sh
       - name: WireGuard peer traffic
@@ -96,7 +93,7 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - name: Build daemon
-        run: cargo build --locked 
+        run: cargo build 
       - name: Install Podman
         run: |
           sudo apt-get update
