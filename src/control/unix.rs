@@ -13,6 +13,7 @@ use std::time::Duration;
 
 const MAX_REQUEST_SIZE: usize = 1024 * 1024;
 const MAX_RESPONSE_SIZE: usize = 4 * 1024 * 1024;
+const SOCKET_IO_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub(crate) struct ControlSocket {
     listener: UnixListener,
@@ -162,7 +163,13 @@ impl UnixTransport {
     }
 
     fn handle_connection(&self, mut stream: UnixStream, api: &mut dyn ControlApi) {
-        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+        if let Err(error) = stream
+            .set_read_timeout(Some(SOCKET_IO_TIMEOUT))
+            .and_then(|()| stream.set_write_timeout(Some(SOCKET_IO_TIMEOUT)))
+        {
+            tracing::warn!(%error, "failed to configure control socket timeouts");
+            return;
+        }
         let mut payload = Vec::new();
         let response = match (&mut stream)
             .take(MAX_REQUEST_SIZE as u64 + 1)
@@ -182,7 +189,7 @@ impl UnixTransport {
             }
         };
 
-        let write_result = serde_json::to_vec(&response)
+        let write_result = encode_response(&response)
             .map_err(|error| error.to_string())
             .and_then(|payload| {
                 stream
@@ -216,6 +223,18 @@ impl ControlTransport for UnixTransport {
             }
         }
     }
+}
+
+fn encode_response(response: &ControlResponse) -> Result<Vec<u8>, serde_json::Error> {
+    let payload = serde_json::to_vec(response)?;
+    if payload.len() <= MAX_RESPONSE_SIZE {
+        return Ok(payload);
+    }
+
+    serde_json::to_vec(&ControlResponse::failure(ControlError::new(
+        ControlErrorKind::Internal,
+        "daemon response exceeds 4 MiB limit",
+    )))
 }
 
 /// Client helper for the Unix transport. Runtime wrappers preserve the old public API.
@@ -268,6 +287,7 @@ impl UnixClient {
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         stream
             .set_read_timeout(Some(Duration::from_secs(300)))
+            .and_then(|()| stream.set_write_timeout(Some(SOCKET_IO_TIMEOUT)))
             .map_err(|error| ControlError::new(ControlErrorKind::Unavailable, error.to_string()))?;
         stream
             .write_all(&payload)
@@ -495,6 +515,24 @@ mod tests {
 
         assert_eq!(error.kind, ControlErrorKind::InvalidRequest);
         assert_eq!(error.message(), "request exceeds 1 MiB limit");
+    }
+
+    #[test]
+    fn server_replaces_oversized_response_with_bounded_error() {
+        let response = ControlResponse::success(Some(vec![InterfaceStats {
+            name: "x".repeat(MAX_RESPONSE_SIZE),
+            peers: Vec::new(),
+        }]));
+
+        let encoded = encode_response(&response).unwrap();
+        assert!(encoded.len() <= MAX_RESPONSE_SIZE);
+        let decoded: ControlResponse = serde_json::from_slice(&encoded).unwrap();
+        assert!(!decoded.ok);
+        assert_eq!(decoded.error_kind, Some(ControlErrorKind::Internal));
+        assert_eq!(
+            decoded.error.as_deref(),
+            Some("daemon response exceeds 4 MiB limit")
+        );
     }
 
     #[test]
