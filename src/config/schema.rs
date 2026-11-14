@@ -2,6 +2,7 @@ use boringtun::noise::amnezia::AmneziaWgConfig;
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 use std::net::Ipv4Addr;
+
 /// Complete daemon configuration. Unknown keys are rejected so a typo cannot
 /// silently disable a security or routing setting.
 #[derive(Clone, Debug, Deserialize)]
