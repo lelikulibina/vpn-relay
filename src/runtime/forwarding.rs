@@ -537,17 +537,17 @@ pub(super) fn enable_interface_forwarding_durable(
             .map_err(|error| RuntimeError::Forwarding(error.to_string()))?;
         verify_forwarding_interface(name, ifindex)?;
         entries.push(InterfaceForwardingState {
-            pub(super) name: name.clone(),
+            name: name.clone(),
             ifindex,
-            pub(super) daemon_owned: daemon_owned_names.contains(name),
-            pub(super) ipv4: if ipv4 { "1" } else { "0" }.to_owned(),
-            pub(super) ipv4_changed: false,
+            daemon_owned: daemon_owned_names.contains(name),
+            ipv4: if ipv4 { "1" } else { "0" }.to_owned(),
+            ipv4_changed: false,
         });
     }
     let mut state = ForwardingState {
-        pub(super) ipv4: "1".to_owned(),
-        pub(super) ipv4_changed: false,
-        pub(super) interfaces: entries,
+        ipv4: "1".to_owned(),
+        ipv4_changed: false,
+        interfaces: entries,
     };
     for entry in &mut state.interfaces {
         entry.ipv4_changed = entry.ipv4 != "1";
@@ -683,9 +683,9 @@ pub(super) fn enable_forwarding_durable(
         );
     }
     let mut state = ForwardingState {
-        pub(super) ipv4: read_sysctl("net.ipv4.ip_forward")?,
-        pub(super) ipv4_changed: false,
-        pub(super) interfaces: Vec::new(),
+        ipv4: read_sysctl("net.ipv4.ip_forward")?,
+        ipv4_changed: false,
+        interfaces: Vec::new(),
     };
     state.ipv4_changed = state.ipv4 != "1";
     validate_forwarding_state(&state)?;
