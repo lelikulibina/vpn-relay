@@ -5,9 +5,13 @@
 //! application errors and domain results do not depend on Unix sockets.
 
 use crate::import::ImportReport;
+#[cfg(target_os = "linux")]
 use std::io::{Read, Write};
-use std::os::unix::net::{UnixStream};
+#[cfg(target_os = "linux")]
+use std::os::unix::net::UnixStream;
+#[cfg(target_os = "linux")]
 use std::path::Path;
+#[cfg(target_os = "linux")]
 use std::time::Duration;
 
 /// Error returned by a Control API implementation.
@@ -56,13 +60,12 @@ pub struct ImportConfigRequest {
 pub trait ControlApi {
     fn reload_config(&mut self, request: ReloadConfigRequest) -> Result<(), ControlError>;
     fn get_stats(&self) -> Result<Vec<InterfaceStats>, ControlError>;
-    fn import_config(
-        &mut self,
-        request: ImportConfigRequest,
-    ) -> Result<ImportReport, ControlError>;
+    fn import_config(&mut self, request: ImportConfigRequest)
+        -> Result<ImportReport, ControlError>;
 }
 
 /// Request DTO used by the current Unix Domain Socket transport.
+#[cfg(target_os = "linux")]
 #[derive(serde::Serialize, serde::Deserialize, Debug, Eq, PartialEq)]
 #[serde(tag = "operation", rename_all = "snake_case")]
 pub(crate) enum ControlRequest {
@@ -97,6 +100,7 @@ pub struct PeerStats {
     pub handshake_age_secs: Option<u64>,
 }
 
+#[cfg(target_os = "linux")]
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ControlResponse {
     pub(crate) ok: bool,
@@ -190,7 +194,11 @@ pub(crate) fn handle_unix_connection(
     };
     if let Err(error) = serde_json::to_vec(&response)
         .map_err(|error| error.to_string())
-        .and_then(|payload| stream.write_all(&payload).map_err(|error| error.to_string()))
+        .and_then(|payload| {
+            stream
+                .write_all(&payload)
+                .map_err(|error| error.to_string())
+        })
     {
         tracing::warn!(%error, "failed to send control response");
     }
@@ -198,6 +206,7 @@ pub(crate) fn handle_unix_connection(
 
 /// Unix socket client transport. The caller supplies the namespace-scoped
 /// socket path; this module does not discover runtime or filesystem state.
+#[cfg(target_os = "linux")]
 pub(crate) fn send_unix_request(
     path: &Path,
     request: ControlRequest,
