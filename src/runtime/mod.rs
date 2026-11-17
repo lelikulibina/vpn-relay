@@ -528,7 +528,9 @@ impl Drop for Runtime {
                 fatal_error = ?self.fatal_error,
                 "original TUN identity was lost; retaining fail-closed nftables policy"
             );
-        } else if let Err(error) = remove_shutdown_firewall(self.nft_applier.as_ref(), &self.routing) {
+        } else if let Err(error) =
+            remove_shutdown_firewall(self.nft_applier.as_ref(), &self.routing)
+        {
             tracing::error!(%error, "failed to remove vpn-relay nftables policy");
         }
     }

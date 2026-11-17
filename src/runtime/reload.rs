@@ -3,14 +3,13 @@
 use super::*;
 
 fn apply_reload_firewall<F>(
-    applier: &dyn NftApplier,
-    plan: &RoutingPlan,
+    apply_result: Result<(), LinuxError>,
     rollback: F,
 ) -> Result<(), RuntimeError>
 where
     F: FnOnce() -> Result<(), RuntimeError>,
 {
-    if let Err(apply_error) = applier.apply(plan) {
+    if let Err(apply_error) = apply_result {
         rollback()?;
         return Err(apply_error.into());
     }
@@ -228,8 +227,8 @@ impl Runtime {
         };
 
         if self.routing != next_routing {
-            let applier = self.nft_applier.as_ref();
-            apply_reload_firewall(applier, &next_routing, || {
+            let apply_result = self.nft_applier.apply(&next_routing);
+            apply_reload_firewall(apply_result, || {
                 self.rollback_reload(&committed, route_resources_changed.then_some(&next_routing))
             })?;
         }

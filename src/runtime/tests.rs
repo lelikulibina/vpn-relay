@@ -1514,7 +1514,7 @@ fn startup_cleanup_success_preserves_original_error() {
 fn reload_firewall_apply_failure_runs_rollback_and_preserves_apply_error() {
     let applier = FaultInjectingNftApplier::new(true, false);
     let mut rollback_called = false;
-    let result = apply_reload_firewall(&applier, &nft_test_routing_plan(), || {
+    let result = apply_reload_firewall(applier.apply(&nft_test_routing_plan()), || {
         rollback_called = true;
         Ok(())
     });
@@ -1531,7 +1531,7 @@ fn reload_firewall_apply_failure_runs_rollback_and_preserves_apply_error() {
 #[test]
 fn reload_firewall_apply_and_rollback_failure_is_fatal() {
     let applier = FaultInjectingNftApplier::new(true, false);
-    let result = apply_reload_firewall(&applier, &nft_test_routing_plan(), || {
+    let result = apply_reload_firewall(applier.apply(&nft_test_routing_plan()), || {
         Err(RuntimeError::FatalTransition(
             "peer rollback failed".to_owned(),
         ))
