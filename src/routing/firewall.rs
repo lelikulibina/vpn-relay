@@ -58,12 +58,16 @@ pub(crate) enum FirewallModelError {
 impl fmt::Display for FirewallModelError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::IncompleteInterfaceIndexMap =>
-                write!(f, "interface index map does not exactly cover managed interfaces"),
-            Self::ZeroInterfaceIndex { interface } =>
-                write!(f, "interface {interface:?} has a zero kernel index"),
-            Self::DuplicateInterfaceIndex { interface, index } =>
-                write!(f, "interface {interface:?} shares kernel index {index}"),
+            Self::IncompleteInterfaceIndexMap => write!(
+                f,
+                "interface index map does not exactly cover managed interfaces"
+            ),
+            Self::ZeroInterfaceIndex { interface } => {
+                write!(f, "interface {interface:?} has a zero kernel index")
+            }
+            Self::DuplicateInterfaceIndex { interface, index } => {
+                write!(f, "interface {interface:?} shares kernel index {index}")
+            }
         }
     }
 }
