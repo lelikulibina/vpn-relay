@@ -4,7 +4,7 @@
 //! validated TOML configuration into deterministic nftables and policy-routing
 //! operations; the runtime layer can apply these operations transactionally.
 
-use crate::config::{Config, FirewallProtocol, FirewallRule, NatAction, NatMode};
+use crate::config::{Config, FirewallProtocol, FirewallRule as ConfigFirewallRule, NatAction, NatMode};
 use std::collections::BTreeMap;
 
 pub(crate) const FIRST_ROUTING_TABLE: u32 = 10_000;
@@ -81,7 +81,7 @@ mod marks;
 mod nft_text;
 pub(crate) use firewall::{
     FirewallAction, FirewallChain, FirewallCompareOperator, FirewallCtKey, FirewallExpression,
-    FirewallMetaKey, FirewallModelError, FirewallMangleKey, FirewallRule, FirewallRuleset,
+    FirewallMangleKey, FirewallMetaKey, FirewallModelError, FirewallRule, FirewallRuleset,
     FirewallSet, FirewallSetType, FirewallValue, InterfaceSelector,
 };
 #[cfg(test)]
@@ -150,7 +150,7 @@ impl RoutingPlan {
             decision.conntrack_mark = FIRST_CONNTRACK_MARK | (decision_id << 16);
         }
 
-        let to_firewall_rule = |rule: &FirewallRule| NftFirewallRule {
+        let to_firewall_rule = |rule: &ConfigFirewallRule| NftFirewallRule {
             interface: rule.interface.clone(),
             source: rule.source.clone(),
             destination: rule.destination.clone(),
