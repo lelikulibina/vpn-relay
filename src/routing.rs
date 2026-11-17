@@ -76,8 +76,10 @@ pub struct RoutingPlan {
     pub interface_indices: Option<BTreeMap<String, u32>>,
 }
 
+mod firewall;
 mod marks;
 mod nft_text;
+pub(crate) use firewall::{FirewallChain, FirewallModelError, FirewallRuleset, FirewallSet, FirewallSetType, InterfaceSelector};
 #[cfg(test)]
 mod tests;
 
