@@ -24,6 +24,7 @@
 - `RoutingPlan::firewall_ruleset()` строит полный ruleset; `fail_closed_bootstrap()` должен давать ту же drop-only семантику, что и текущий `nft_script()`.
 - Списки chain rules и expressions остаются `Vec`: порядок правил является частью firewall semantics и не должен зависеть от hash iteration.
 - Interface selectors представлены явно: имя либо numeric ifindex. Подстановка индексов происходит при построении model nodes, а не после сериализации/рендеринга.
+- `RoutingPlan::firewall_ruleset()` возвращает `Result` и отклоняет неполный, нулевой или дублирующийся ifindex map; отсутствие map означает штатный name-based режим. Это исключает тихое удаление элементов set при неполной привязке.
 - Identity guards представляются обычными typed rules и сохраняют обе проверки: configured name→expected index и expected index→configured name.
 - Crate adapter строит `nftables::schema::Nftables` / `NfObject` / `Rule` и использует crate expressions/statements. Raw JSON adapter добавляет только table-level ownership comment и `iface_index` set datatype, отсутствующие в crate schema.
 - Старый string generator остаётся доступным и не меняется в этом этапе. Production apply/remove, ownership inspection, atomic batch, startup/reload/shutdown и runtime behavior не переключаются.

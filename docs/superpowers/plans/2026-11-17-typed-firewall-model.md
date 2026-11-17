@@ -40,10 +40,12 @@
 **Интерфейсы:**
 - Создать `pub(crate) struct FirewallRuleset`, `FirewallSet`, `FirewallChain`.
 - Создать `pub(crate) enum InterfaceSelector { Name(String), Index(u32) }`.
-- Добавить `RoutingPlan::firewall_ruleset(&self) -> FirewallRuleset`.
+- Добавить `pub(crate) enum FirewallModelError` и `RoutingPlan::firewall_ruleset(&self) -> Result<FirewallRuleset, FirewallModelError>`.
+- В numeric mode валидировать полный one-to-one map: все managed interfaces присутствуют, индексы ненулевые и уникальные; `None` означает штатный name-based mode.
 - Сохранять ordered `Vec` для объектов и chain rules.
 
 - [ ] RED: добавить `firewall_model_preserves_table_chain_and_set_identity`; проверить family/table/comment, порядок пяти base chains, managed interface set и IPv6 selector set в name/index modes.
+- [ ] RED: добавить `firewall_model_rejects_incomplete_interface_index_map`; проверить, что missing/zero/duplicate ifindex возвращает ошибку, а не молча исключает интерфейс из set.
 - [ ] Проверить ожидаемое отсутствие `firewall_ruleset`/модели до реализации.
 - [ ] GREEN: реализовать объекты, sets и base chains, включая корректный fail-closed bootstrap variant.
 - [ ] Запустить `cargo fmt --all --check`, `cargo check --locked --all-targets`, `cargo test --locked --all-targets`.
@@ -90,8 +92,7 @@
 - Изменить: `docs/ROADMAP.md`, `docs/DEVELOPMENT_LOG.md`, `AGENTS.md`, `docs/VPN_RELAY_NFTABLES.md`
 - Тесты: существующие tests остаются без удаления/переименования.
 
-- [ ] RED: проверить, что docs явно фиксируют script backend как production source of truth и typed model как параллельное представление.
-- [ ] GREEN: описать typed model, adapter и два raw compatibility исключения; сохранить parity/production switch в отдельных будущих шагах.
+- [ ] Обновить документацию: зафиксировать typed model, adapter и два raw compatibility исключения; явно сохранить script backend как production source of truth до parity/production switch.
 - [ ] Запустить полный CI (9 jobs) и проверить актуальный HEAD.
 - [ ] Commit: `docs(nftables): document typed firewall model`.
 
