@@ -738,7 +738,6 @@ fn firewall_model_rejects_incomplete_interface_index_map() {
     ));
 }
 
-
 #[test]
 fn firewall_model_preserves_managed_host_policy_order() {
     let mut config = sample_config();
@@ -757,9 +756,19 @@ fn firewall_model_preserves_managed_host_policy_order() {
         ports: Some(vec![53]),
     });
 
-    let model = RoutingPlan::from_config(&config).firewall_ruleset().unwrap();
-    let input = model.chains.iter().find(|chain| chain.name == "input").unwrap();
-    let output = model.chains.iter().find(|chain| chain.name == "output").unwrap();
+    let model = RoutingPlan::from_config(&config)
+        .firewall_ruleset()
+        .unwrap();
+    let input = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "input")
+        .unwrap();
+    let output = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "output")
+        .unwrap();
 
     assert_eq!(input.rules.len(), 4);
     assert_eq!(input.rules[0].actions, [FirewallAction::Drop]);
@@ -788,15 +797,18 @@ fn firewall_model_preserves_managed_host_policy_order() {
         } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::IifName))
             && interface == "wg-server"
     )));
-    assert!(output.rules[1].expressions.iter().any(|expression| matches!(
-        expression,
-        FirewallExpression::Compare {
-            left,
-            operator: FirewallCompareOperator::Equal,
-            right: FirewallValue::String(interface),
-        } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::OifName))
-            && interface == "awg-secondary"
-    )));
+    assert!(output.rules[1]
+        .expressions
+        .iter()
+        .any(|expression| matches!(
+            expression,
+            FirewallExpression::Compare {
+                left,
+                operator: FirewallCompareOperator::Equal,
+                right: FirewallValue::String(interface),
+            } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::OifName))
+                && interface == "awg-secondary"
+        )));
 }
 
 #[test]
@@ -850,24 +862,26 @@ fn firewall_model_preserves_conntrack_decision_and_nat_pairing() {
         }
     }
 
-    assert!(prerouting.rules.iter().any(|rule| rule.actions.iter().any(
-        |action| matches!(
+    assert!(prerouting
+        .rules
+        .iter()
+        .any(|rule| rule.actions.iter().any(|action| matches!(
             action,
             FirewallAction::Mangle {
                 key: FirewallMangleKey::ConntrackMark,
                 value: FirewallExpression::BitwiseOr { .. },
             }
-        )
-    )));
-    assert!(prerouting.rules.iter().any(|rule| rule.actions.iter().any(
-        |action| matches!(
+        ))));
+    assert!(prerouting
+        .rules
+        .iter()
+        .any(|rule| rule.actions.iter().any(|action| matches!(
             action,
             FirewallAction::Mangle {
                 key: FirewallMangleKey::MetaMark,
                 value: FirewallExpression::Number(0),
             }
-        )
-    )));
+        ))));
 }
 
 #[test]
@@ -882,7 +896,12 @@ fn firewall_model_preserves_numeric_identity_guards() {
 
     let model = plan.firewall_ruleset().unwrap();
     for (chain_name, key_name, key_index, expected_guards) in [
-        ("prerouting", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
+        (
+            "prerouting",
+            FirewallMetaKey::IifName,
+            FirewallMetaKey::Iif,
+            6,
+        ),
         ("input", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
         ("forward", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
         ("forward", FirewallMetaKey::OifName, FirewallMetaKey::Oif, 6),
@@ -909,13 +928,15 @@ fn firewall_model_preserves_numeric_identity_guards() {
             })
             .collect();
         assert_eq!(guards.len(), expected_guards);
-        assert!(guards.iter().all(|rule| rule.expressions.iter().any(|expression| matches!(
-            expression,
-            FirewallExpression::Compare {
-                left,
-                operator: FirewallCompareOperator::NotEqual,
-                right: FirewallValue::Number(_),
-            } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_name)
-        ))));
+        assert!(guards
+            .iter()
+            .all(|rule| rule.expressions.iter().any(|expression| matches!(
+                expression,
+                FirewallExpression::Compare {
+                    left,
+                    operator: FirewallCompareOperator::NotEqual,
+                    right: FirewallValue::Number(_),
+                } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_name)
+            ))));
     }
 }
