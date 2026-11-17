@@ -585,7 +585,6 @@ fn source_only_and_destination_only_rules_generate_ipv4_matches() {
     assert!(script.contains("ip saddr 10.10.0.0/24 meta mark set"));
 }
 
-
 #[test]
 fn firewall_model_preserves_table_chain_and_set_identity() {
     let plan = RoutingPlan::from_config(&sample_config());
@@ -595,24 +594,44 @@ fn firewall_model_preserves_table_chain_and_set_identity() {
     assert_eq!(model.table, "vpn_relay");
     assert_eq!(model.comment, "managed by vpn-relay");
     assert_eq!(
-        model.chains.iter().map(|chain| chain.name.as_str()).collect::<Vec<_>>(),
+        model
+            .chains
+            .iter()
+            .map(|chain| chain.name.as_str())
+            .collect::<Vec<_>>(),
         ["prerouting", "input", "forward", "output", "postrouting"]
     );
     assert_eq!(
-        model.chains.iter().map(|chain| chain.hook.as_str()).collect::<Vec<_>>(),
+        model
+            .chains
+            .iter()
+            .map(|chain| chain.hook.as_str())
+            .collect::<Vec<_>>(),
         ["prerouting", "input", "forward", "output", "postrouting"]
     );
     assert_eq!(
-        model.chains.iter().map(|chain| chain.chain_type.as_str()).collect::<Vec<_>>(),
+        model
+            .chains
+            .iter()
+            .map(|chain| chain.chain_type.as_str())
+            .collect::<Vec<_>>(),
         ["filter", "filter", "filter", "filter", "nat"]
     );
     assert_eq!(
-        model.chains.iter().map(|chain| chain.priority.as_str()).collect::<Vec<_>>(),
+        model
+            .chains
+            .iter()
+            .map(|chain| chain.priority.as_str())
+            .collect::<Vec<_>>(),
         ["mangle", "filter", "filter", "filter", "srcnat"]
     );
     assert!(model.chains.iter().all(|chain| chain.policy == "accept"));
 
-    let managed = model.sets.iter().find(|set| set.name == "managed_interfaces").unwrap();
+    let managed = model
+        .sets
+        .iter()
+        .find(|set| set.name == "managed_interfaces")
+        .unwrap();
     assert_eq!(managed.data_type, FirewallSetType::IfName);
     assert_eq!(
         managed.elements,
@@ -622,14 +641,24 @@ fn firewall_model_preserves_table_chain_and_set_identity() {
             .collect::<Vec<_>>()
     );
 
-    let ipv6 = model.sets.iter().find(|set| set.name == "ipv6_drop_interfaces").unwrap();
+    let ipv6 = model
+        .sets
+        .iter()
+        .find(|set| set.name == "ipv6_drop_interfaces")
+        .unwrap();
     assert_eq!(ipv6.data_type, FirewallSetType::IfName);
     assert_eq!(ipv6.elements, managed.elements);
 
     let bootstrap = plan.fail_closed_bootstrap().firewall_ruleset().unwrap();
     assert!(bootstrap.is_bootstrap);
-    assert!(bootstrap.sets.iter().any(|set| set.name == "managed_interfaces"));
-    assert!(bootstrap.sets.iter().any(|set| set.name == "ipv6_drop_interfaces"));
+    assert!(bootstrap
+        .sets
+        .iter()
+        .any(|set| set.name == "managed_interfaces"));
+    assert!(bootstrap
+        .sets
+        .iter()
+        .any(|set| set.name == "ipv6_drop_interfaces"));
 }
 
 #[test]
