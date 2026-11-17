@@ -113,9 +113,33 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
     }
 }
 
+/// Runtime-facing abstraction for applying and removing firewall policies.
+///
+/// Implementations preserve ownership checks and atomic batch semantics. The
+/// trait is synchronous because firewall operations participate in ordered
+/// startup, reload, rollback, and shutdown transactions.
+pub(crate) trait NftApplier {
+    fn apply(&self, plan: &RoutingPlan) -> Result<(), LinuxError>;
+    fn remove(&self, plan: &RoutingPlan) -> Result<(), LinuxError>;
+}
+
+/// Production implementation backed by the existing nft command/script adapter.
+#[derive(Default)]
+pub(crate) struct SystemNftApplier;
+
+impl NftApplier for SystemNftApplier {
+    fn apply(&self, plan: &RoutingPlan) -> Result<(), LinuxError> {
+        apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_script)
+    }
+
+    fn remove(&self, plan: &RoutingPlan) -> Result<(), LinuxError> {
+        remove_nft_with(plan, &mut inspect_nft_table, &mut run)
+    }
+}
+
 /// Replace only a table whose table-level metadata proves ownership.
 pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
-    apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_script)
+    SystemNftApplier.apply(plan)
 }
 
 pub(super) fn apply_nft_with<I, R>(
@@ -183,7 +207,7 @@ fn run_nft_script(script: &str) -> Result<(), LinuxError> {
 }
 
 pub fn remove_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
-    remove_nft_with(plan, &mut inspect_nft_table, &mut run)
+    SystemNftApplier.remove(plan)
 }
 
 pub(super) fn remove_nft_with<I, R>(

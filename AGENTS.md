@@ -53,13 +53,14 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 
 ### Rust-код
 
-- `src/main.rs` — CLI entry point, разбор аргументов вручную, режимы foreground/background, настройка файлового логирования, форматирование табличной статистики.
+- `src/main.rs` — CLI entry point и связывание команд с библиотекой.
+- `src/cli/{mod,args,daemon,output}.rs` — разбор CLI аргументов, foreground/background lifecycle, логирование и форматирование статистики.
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
-- `src/config.rs` — TOML-модель, serde-типы, defaults, валидация, правила совместимости reload, разбор endpoint/key/CIDR и конфигурационные unit tests.
+- `src/config/{mod,schema,validate,reload,parse}.rs` — TOML-модель, serde-типы, defaults, синтаксический и семантический разбор, валидация и правила совместимости reload.
 - `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
-- `src/routing.rs` и `src/routing/` — backend-independent routing plan: `mod.rs` строит egress resources/routing decisions и команды iproute2; `marks.rs` отвечает за durable conntrack decision marks; `nft_text.rs` генерирует текущий nftables script; `tests.rs` содержит routing unit tests. Генератор остаётся чистым и не применяет правила.
-- `src/linux.rs` — Linux adapter: запуск ip/nft, проверка владения ресурсами, установка/удаление nftables и policy routing, поиск/проверка interface identity, низкоуровневый rtnetlink для per-interface IPv4 forwarding, конфигурация TUN link, unit tests.
-- `src/runtime/mod.rs` — orchestration и lifecycle: startup/shutdown, snapshots/stats, signal handling; `src/runtime/lock.rs` — instance lock и namespace-scoped пути; `src/runtime/state.rs` — durable conntrack mark history; `src/runtime/forwarding.rs` — IPv4 forwarding lifecycle и recovery; `src/runtime/reload.rs` — peer replacement и транзакционный live config reload; `src/runtime/tests.rs` — runtime unit tests.
+- `src/routing/{mod,marks,nft_text,tests}.rs` — backend-independent routing plan, egress resources/routing decisions, durable conntrack decision marks и текущий nftables script generator. Генератор остаётся чистым и не применяет правила.
+- `src/linux/{exec,nft,policy,link,netlink,tests}.rs` — Linux adapters: process execution, ownership-safe nftables apply/remove через `NftApplier`, iproute2 policy routing, interface identity, rtnetlink и тесты.
+- `src/runtime/mod.rs` — orchestration и lifecycle: startup/shutdown, snapshots/stats, signal handling; `src/runtime/lock.rs` — instance lock и namespace-scoped пути; `src/runtime/state.rs` — durable conntrack mark history; `src/runtime/forwarding.rs` — IPv4 forwarding lifecycle и recovery; `src/runtime/reload.rs` — peer replacement и транзакционный live config reload; `src/runtime/tests.rs` — runtime unit tests. Один injected `NftApplier` используется на всех стадиях firewall lifecycle.
 - `src/control/` — transport-independent Control API (`api.rs`), request dispatcher (`dispatch.rs`) и Unix domain socket transport/client (`unix.rs`); transport errors имеют отдельные стабильные категории, wire compatibility с legacy JSON сохраняется.
 - `src/backend/mod.rs` — backend-neutral contracts, snapshots и registry.
 - `src/backend/boringtun.rs` — реализация WG/AWG backend поверх BoringTun typed Device API, preflight DNS/peer preparation, peer conversion и snapshots.
@@ -160,9 +161,9 @@ Control protocol — внутренние serde JSON messages поверх Unix 
 - `replace_peers`;
 - `reload_config`.
 
-Stats возвращают интерфейсы и peer metadata: public key, AllowedIPs/client IPs, endpoint, TX/RX bytes, возраст последнего handshake. Человеко-читаемая таблица формируется в `main.rs`. JSON не является пользовательским форматом CLI.
+Stats возвращают интерфейсы и peer metadata: public key, AllowedIPs/client IPs, endpoint, TX/RX bytes, возраст последнего handshake. Человеко-читаемая таблица формируется в `cli/output.rs`. JSON не является пользовательским форматом CLI.
 
-CLI аргументы сейчас разбираются вручную в `main.rs`; добавляя опцию, обновляйте usage/help, проверку взаимоисключающих операций и README. Не предполагайте, что используется clap.
+CLI аргументы разбираются вручную в `cli/args.rs`; добавляя опцию, обновляйте usage/help, проверку взаимоисключающих операций и README. Не предполагайте, что используется clap.
 
 Background mode реализован в `main.rs`: fork, setsid, chdir, umask, stdio -> /dev/null, закрытие лишних fd, startup pipe для передачи родителю результата инициализации. Не меняйте fork lifecycle без отдельного теста успешного/ошибочного старта. По умолчанию daemon остаётся foreground.
 
@@ -218,7 +219,8 @@ sudo bash scripts/vpn-relay-netns-test.sh
 sudo bash scripts/vpn-relay-per-interface-forwarding-test.sh
 sudo bash scripts/vpn-relay-per-interface-forwarding-packet-test.sh
 sudo bash scripts/vpn-relay-peer-traffic-test.sh wg
-sudo bash scripts/vpn-relay-peer-traffic-test.sh awg
+sudo bash scripts/vpn-relay-peer-traffic-test.sh awg3
+sudo bash scripts/vpn-relay-peer-traffic-test.sh awg31
 sudo bash scripts/vpn-relay-multi-uplink-test.sh
 ```
 
@@ -236,18 +238,16 @@ Podman smoke test выполняется CI job `podman`; он намеренн�
 
 Release workflow запускается по тегам `vpn-relay-v*`, сверяет tag с Cargo version и собирает linux x86_64 archive с бинарником, example config, changelog и nftables docs.
 
-## 10. Текущие архитектурные узкие места (наблюдения аудита)
+## 10. Текущие архитектурные точки внимания
 
-Это не список ошибок datapath, а точки, которые повышают стоимость сопровождения:
-- `runtime.rs` (около 3.3k строк) смешивает runtime orchestration, control protocol, IPC socket lifecycle, instance locking, peer/reload transactions, durable conntrack state, forwarding journal/sysctl recovery и большое число тестов.
-- `linux.rs` (около 2.5k строк) смешивает process execution, nftables ownership/transactions, iproute2 policy routing, link identity, rtnetlink wire encoding/parsing, forwarding sysctl adapter и тесты.
-- `config.rs` (около 2k строк) объединяет schema, defaults, serde adapters, semantic validation, reload compatibility, endpoint/key/CIDR parsing и тесты.
-- `routing.rs` (около 1.4k строк) содержит plan construction, conntrack mark history, nftables code generation, ip command generation и тесты.
-- `import.rs` (около 700 строк) содержит importer parser, semantic mapping, TOML rendering/validation, atomic persistence и tests.
-- Production code и tests находятся в тех же больших файлах; это удобно для локальных приватных helper tests, но ухудшает навигацию и делает файлы тяжёлыми для ревью.
-- `main.rs` сам реализует CLI parsing, process daemonization, logging setup и presentation logic; эти обязанности можно разделить.
-- Integration shell scripts крупные и сценарно насыщенные. Их размер частично оправдан end-to-end nature, но сценарии/fixtures/assertions можно лучше структурировать.
-- Документация в целом уже содержит существенные детали, но критические invariants распределены между README, nftables doc, comments и tests; AGENTS.md должен служить картой, а не копией этих документов.
+Это подтверждённые направления улучшения, а не утверждение о наличии ошибок datapath:
+- Runtime orchestration всё ещё непосредственно зависит от Linux policy-routing, link и forwarding функций. Для nftables введён `NftApplier` seam; аналогичные абстракции нужны только там, где они обеспечивают конкретную fault-injection или заменяемость.
+- `routing/nft_text.rs` остаётся строковым production generator. Переход на typed nftables model требует parity tests до переключения.
+- Startup и reload содержат несколько связанных транзакционных стадий; fault-injection должен подтверждать rollback и fail-closed поведение до выделения общего transaction framework.
+- `control/unix.rs` обрабатывает подключения синхронно; влияние медленного клиента на polling loop следует проверить до введения параллельной обработки.
+- nftables и Unix socket ownership проверки используют inspect-then-act последовательности; отдельно оценить TOCTOU-модель угроз, не ослабляя текущие проверки.
+- `config/mod.rs` содержит ручной allowlist ключей интерфейса рядом с serde schema; исследовать устранение дублирования без потери отказа на unknown fields.
+- `import.rs` и `control/unix.rs` остаются сравнительно крупными файлами; разделять их только по самостоятельным контрактам, не по размеру.
 
 ## 11. Правила изменения этого файла
 
@@ -263,4 +263,4 @@ Release workflow запускается по тегам `vpn-relay-v*`, свер
 
 ## 10.1. Статус nftables migration (R3)
 
-На текущем этапе production firewall по-прежнему строится `RoutingPlan::nft_script()` в `src/routing/nft_text.rs` и применяется `src/linux/nft.rs`; crate `nftables` пока не добавлен в `Cargo.toml` и не является runtime dependency. R3.0 read-only audit upstream API v0.6.3 подтвердил типизированную поддержку основных объектов/выражений/операторов и выявил два исключения: set datatype `iface_index` отсутствует в `SetType`, table-level `comment` отсутствует в `schema::Table`. При реализации R3 использовать узкий raw JSON adapter для этих элементов и ownership inspection; не ослаблять точную проверку family/name/comment и не менять fail-closed identity guards. R3.1 должен сначала ввести `NftApplier` seam с сохранением текущего script backend как эталона; переключение допускается только после интеграционного сравнения нормализованных rulesets.
+На текущем этапе production firewall по-прежнему строится `RoutingPlan::nft_script()` в `src/routing/nft_text.rs` и применяется `src/linux/nft.rs`; crate `nftables` пока не добавлен в `Cargo.toml` и не является runtime dependency. R3.0 read-only audit upstream API v0.6.3 подтвердил типизированную поддержку основных объектов/выражений/операторов и выявил два исключения: set datatype `iface_index` отсутствует в `SetType`, table-level `comment` отсутствует в `schema::Table`. R3.1 ввёл внутренний `NftApplier` и production `SystemNftApplier`; один injected экземпляр проходит через startup/bootstrap, cleanup, reload и shutdown, при этом публичные wrappers и script backend сохранены. Следующий обязательный шаг — fault-injection tests для lifecycle failure paths; затем typed model и parity tests. Использовать узкий raw JSON adapter для ограничений crate и ownership inspection; не ослаблять точную проверку family/name/comment и fail-closed identity guards.

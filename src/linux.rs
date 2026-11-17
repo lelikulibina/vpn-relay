@@ -17,6 +17,7 @@ use netlink::{
 };
 pub use netlink::{ipv4_interface_forwarding, set_ipv4_interface_forwarding};
 pub use nft::{apply_nft, remove_nft};
+pub(crate) use nft::{NftApplier, SystemNftApplier};
 pub use policy::{
     allocate_policy_routing_resources, apply_egress_policy_routing, apply_policy_routing,
     remove_egress_policy_routing, remove_policy_routing,

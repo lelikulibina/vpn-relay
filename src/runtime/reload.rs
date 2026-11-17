@@ -213,7 +213,7 @@ impl Runtime {
         };
 
         if self.routing != next_routing {
-            if let Err(error) = linux::apply_nft(&next_routing) {
+            if let Err(error) = self.nft_applier.apply(&next_routing) {
                 self.rollback_reload(&committed, route_resources_changed.then_some(&next_routing))?;
                 return Err(error.into());
             }
