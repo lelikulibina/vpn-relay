@@ -1,4 +1,5 @@
 use super::*;
+use crate::config::FirewallRule as ConfigFirewallRule;
 
 const KEY: &str = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
 
@@ -54,14 +55,14 @@ fn selector_free_routing_firewall_and_masquerade_are_generated() {
     config.routing.rules[0].source = None;
     config.routing.rules[0].destination = None;
     config.routing.rules[0].nat = NatMode::Masquerade;
-    config.firewall.input.rules.push(FirewallRule {
+    config.firewall.input.rules.push(ConfigFirewallRule {
         interface: "wg-server".to_owned(),
         source: None,
         destination: None,
         protocol: Some(FirewallProtocol::Tcp),
         ports: Some(vec![22]),
     });
-    config.firewall.output.rules.push(FirewallRule {
+    config.firewall.output.rules.push(ConfigFirewallRule {
         interface: "awg-secondary".to_owned(),
         source: None,
         destination: None,
@@ -735,4 +736,186 @@ fn firewall_model_rejects_incomplete_interface_index_map() {
         plan.firewall_ruleset(),
         Err(FirewallModelError::IncompleteInterfaceIndexMap)
     ));
+}
+
+
+#[test]
+fn firewall_model_preserves_managed_host_policy_order() {
+    let mut config = sample_config();
+    config.firewall.input.rules.push(ConfigFirewallRule {
+        interface: "wg-server".to_owned(),
+        source: None,
+        destination: None,
+        protocol: Some(FirewallProtocol::Tcp),
+        ports: Some(vec![22]),
+    });
+    config.firewall.output.rules.push(ConfigFirewallRule {
+        interface: "awg-secondary".to_owned(),
+        source: None,
+        destination: None,
+        protocol: Some(FirewallProtocol::Udp),
+        ports: Some(vec![53]),
+    });
+
+    let model = RoutingPlan::from_config(&config).firewall_ruleset().unwrap();
+    let input = model.chains.iter().find(|chain| chain.name == "input").unwrap();
+    let output = model.chains.iter().find(|chain| chain.name == "output").unwrap();
+
+    assert_eq!(input.rules.len(), 4);
+    assert_eq!(input.rules[0].actions, [FirewallAction::Drop]);
+    assert!(matches!(
+        input.rules[1].actions.as_slice(),
+        [FirewallAction::Mangle { .. }, FirewallAction::Accept]
+    ));
+    assert_eq!(input.rules[2].actions, [FirewallAction::Accept]);
+    assert_eq!(input.rules[3].actions, [FirewallAction::Drop]);
+
+    assert_eq!(output.rules.len(), 4);
+    assert_eq!(output.rules[0].actions, [FirewallAction::Drop]);
+    assert!(matches!(
+        output.rules[1].actions.as_slice(),
+        [FirewallAction::Mangle { .. }, FirewallAction::Accept]
+    ));
+    assert_eq!(output.rules[2].actions, [FirewallAction::Accept]);
+    assert_eq!(output.rules[3].actions, [FirewallAction::Drop]);
+
+    assert!(input.rules[1].expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Compare {
+            left,
+            operator: FirewallCompareOperator::Equal,
+            right: FirewallValue::String(interface),
+        } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::IifName))
+            && interface == "wg-server"
+    )));
+    assert!(output.rules[1].expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Compare {
+            left,
+            operator: FirewallCompareOperator::Equal,
+            right: FirewallValue::String(interface),
+        } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::OifName))
+            && interface == "awg-secondary"
+    )));
+}
+
+#[test]
+fn firewall_model_preserves_conntrack_decision_and_nat_pairing() {
+    let mut config = sample_config();
+    config.routing.rules[0].nat = NatMode::None;
+    config.routing.rules[1].nat = NatMode::Masquerade;
+    config.routing.rules[2].nat = NatMode::Snat;
+    config.routing.rules[2].nat_to = Some("198.51.100.10".parse().unwrap());
+
+    let plan = RoutingPlan::from_config(&config);
+    let model = plan.firewall_ruleset().unwrap();
+    let prerouting = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "prerouting")
+        .unwrap();
+    let postrouting = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "postrouting")
+        .unwrap();
+
+    assert_eq!(postrouting.rules.len(), plan.decisions.len());
+    for (rule, decision) in postrouting.rules.iter().zip(&plan.decisions) {
+        assert!(rule.expressions.iter().any(|expression| matches!(
+            expression,
+            FirewallExpression::Compare {
+                left,
+                operator: FirewallCompareOperator::Equal,
+                right: FirewallValue::Number(mark),
+            } if *mark == decision.conntrack_mark
+                && matches!(
+                    left.as_ref(),
+                    FirewallExpression::BitwiseAnd {
+                        expression,
+                        mask: 0xffff_0000,
+                    } if matches!(
+                        expression.as_ref(),
+                        FirewallExpression::Ct(FirewallCtKey::Mark)
+                    )
+                )
+        )));
+        match decision.nat {
+            NatMode::None => assert_eq!(rule.actions, [FirewallAction::Return]),
+            NatMode::Masquerade => assert_eq!(rule.actions, [FirewallAction::Masquerade]),
+            NatMode::Snat => assert_eq!(
+                rule.actions,
+                [FirewallAction::Snat(decision.nat_to.unwrap())]
+            ),
+        }
+    }
+
+    assert!(prerouting.rules.iter().any(|rule| rule.actions.iter().any(
+        |action| matches!(
+            action,
+            FirewallAction::Mangle {
+                key: FirewallMangleKey::ConntrackMark,
+                value: FirewallExpression::BitwiseOr { .. },
+            }
+        )
+    )));
+    assert!(prerouting.rules.iter().any(|rule| rule.actions.iter().any(
+        |action| matches!(
+            action,
+            FirewallAction::Mangle {
+                key: FirewallMangleKey::MetaMark,
+                value: FirewallExpression::Number(0),
+            }
+        )
+    )));
+}
+
+#[test]
+fn firewall_model_preserves_numeric_identity_guards() {
+    let mut plan = RoutingPlan::from_config(&sample_config());
+    plan.bind_interface_indices(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 18),
+        ("awg-secondary".to_owned(), 19),
+    ]))
+    .unwrap();
+
+    let model = plan.firewall_ruleset().unwrap();
+    for (chain_name, key_name, key_index, expected_guards) in [
+        ("prerouting", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
+        ("input", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
+        ("forward", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
+        ("forward", FirewallMetaKey::OifName, FirewallMetaKey::Oif, 6),
+        ("output", FirewallMetaKey::OifName, FirewallMetaKey::Oif, 6),
+    ] {
+        let chain = model
+            .chains
+            .iter()
+            .find(|chain| chain.name == chain_name)
+            .unwrap();
+        let guards: Vec<_> = chain
+            .rules
+            .iter()
+            .filter(|rule| {
+                rule.actions == [FirewallAction::Counter, FirewallAction::Drop]
+                    && rule.expressions.iter().any(|expression| matches!(
+                        expression,
+                        FirewallExpression::Compare {
+                            left,
+                            operator: FirewallCompareOperator::NotEqual,
+                            right: FirewallValue::Number(_),
+                        } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_index)
+                    ))
+            })
+            .collect();
+        assert_eq!(guards.len(), expected_guards);
+        assert!(guards.iter().all(|rule| rule.expressions.iter().any(|expression| matches!(
+            expression,
+            FirewallExpression::Compare {
+                left,
+                operator: FirewallCompareOperator::NotEqual,
+                right: FirewallValue::Number(_),
+            } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_name)
+        ))));
+    }
 }
