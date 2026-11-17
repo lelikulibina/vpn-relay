@@ -80,8 +80,9 @@ mod firewall;
 mod marks;
 mod nft_text;
 pub(crate) use firewall::{
-    FirewallChain, FirewallModelError, FirewallRuleset, FirewallSet, FirewallSetType,
-    InterfaceSelector,
+    FirewallAction, FirewallChain, FirewallCompareOperator, FirewallCtKey, FirewallExpression,
+    FirewallMetaKey, FirewallModelError, FirewallMangleKey, FirewallRule, FirewallRuleset,
+    FirewallSet, FirewallSetType, FirewallValue, InterfaceSelector,
 };
 #[cfg(test)]
 mod tests;
