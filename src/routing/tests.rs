@@ -584,3 +584,95 @@ fn source_only_and_destination_only_rules_generate_ipv4_matches() {
     assert!(script.contains("ct state new ip daddr 203.0.113.0/24 meta mark set"));
     assert!(script.contains("ip saddr 10.10.0.0/24 meta mark set"));
 }
+
+
+#[test]
+fn firewall_model_preserves_table_chain_and_set_identity() {
+    let plan = RoutingPlan::from_config(&sample_config());
+    let model = plan.firewall_ruleset().unwrap();
+
+    assert_eq!(model.family, "inet");
+    assert_eq!(model.table, "vpn_relay");
+    assert_eq!(model.comment, "managed by vpn-relay");
+    assert_eq!(
+        model.chains.iter().map(|chain| chain.name.as_str()).collect::<Vec<_>>(),
+        ["prerouting", "input", "forward", "output", "postrouting"]
+    );
+    assert_eq!(
+        model.chains.iter().map(|chain| chain.hook.as_str()).collect::<Vec<_>>(),
+        ["prerouting", "input", "forward", "output", "postrouting"]
+    );
+    assert_eq!(
+        model.chains.iter().map(|chain| chain.chain_type.as_str()).collect::<Vec<_>>(),
+        ["filter", "filter", "filter", "filter", "nat"]
+    );
+    assert_eq!(
+        model.chains.iter().map(|chain| chain.priority.as_str()).collect::<Vec<_>>(),
+        ["mangle", "filter", "filter", "filter", "srcnat"]
+    );
+    assert!(model.chains.iter().all(|chain| chain.policy == "accept"));
+
+    let managed = model.sets.iter().find(|set| set.name == "managed_interfaces").unwrap();
+    assert_eq!(managed.data_type, FirewallSetType::IfName);
+    assert_eq!(
+        managed.elements,
+        ["awg-primary", "awg-secondary", "wg-server"]
+            .into_iter()
+            .map(|name| InterfaceSelector::Name(name.to_owned()))
+            .collect::<Vec<_>>()
+    );
+
+    let ipv6 = model.sets.iter().find(|set| set.name == "ipv6_drop_interfaces").unwrap();
+    assert_eq!(ipv6.data_type, FirewallSetType::IfName);
+    assert_eq!(ipv6.elements, managed.elements);
+
+    let bootstrap = plan.fail_closed_bootstrap().firewall_ruleset().unwrap();
+    assert!(bootstrap.is_bootstrap);
+    assert!(bootstrap.sets.iter().any(|set| set.name == "managed_interfaces"));
+    assert!(bootstrap.sets.iter().any(|set| set.name == "ipv6_drop_interfaces"));
+}
+
+#[test]
+fn firewall_model_rejects_incomplete_interface_index_map() {
+    let mut plan = RoutingPlan::from_config(&sample_config());
+
+    plan.interface_indices = Some(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 18),
+    ]));
+    assert!(matches!(
+        plan.firewall_ruleset(),
+        Err(FirewallModelError::IncompleteInterfaceIndexMap)
+    ));
+
+    plan.interface_indices = Some(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 0),
+        ("awg-secondary".to_owned(), 19),
+    ]));
+    assert!(matches!(
+        plan.firewall_ruleset(),
+        Err(FirewallModelError::ZeroInterfaceIndex { .. })
+    ));
+
+    plan.interface_indices = Some(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 17),
+        ("awg-secondary".to_owned(), 19),
+    ]));
+    assert!(matches!(
+        plan.firewall_ruleset(),
+        Err(FirewallModelError::DuplicateInterfaceIndex { .. })
+    ));
+
+    plan.interface_indices = Some(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 18),
+        ("awg-secondary".to_owned(), 19),
+        ("unexpected".to_owned(), 20),
+    ]));
+    assert!(matches!(
+        plan.firewall_ruleset(),
+        Err(FirewallModelError::IncompleteInterfaceIndexMap)
+    ));
+}
