@@ -162,12 +162,12 @@ impl Runtime {
             // Dropping the handles stops and joins any workers created before
             // the failing interface; the firewall is removed only afterwards.
             drop(devices);
-            if let Err(cleanup) = nft_applier.remove(&routing) {
-                return Err(RuntimeError::FatalTransition(format!(
-                    "interface setup failed ({error}); nftables cleanup failed ({cleanup})"
-                )));
-            }
-            return Err(error);
+            return Err(cleanup_startup_firewall(
+                nft_applier.as_ref(),
+                &routing,
+                error,
+                "interface setup",
+            ));
         }
 
         // Replace bootstrap name selectors with indices resolved only after
@@ -185,31 +185,31 @@ impl Runtime {
             Ok(indices) => indices,
             Err(error) => {
                 drop(devices);
-                if let Err(cleanup) = nft_applier.remove(&routing) {
-                    return Err(RuntimeError::FatalTransition(format!(
-                        "interface identity resolution failed ({error}); bootstrap firewall cleanup failed ({cleanup})"
-                    )));
-                }
-                return Err(error);
+                return Err(cleanup_startup_firewall(
+                    nft_applier.as_ref(),
+                    &routing,
+                    error,
+                    "interface identity resolution",
+                ));
             }
         };
         if let Err(error) = routing.bind_interface_indices(interface_indices) {
             drop(devices);
-            if let Err(cleanup) = nft_applier.remove(&routing) {
-                return Err(RuntimeError::FatalTransition(format!(
-                    "interface index binding failed ({error}); bootstrap firewall cleanup failed ({cleanup})"
-                )));
-            }
-            return Err(RuntimeError::Configuration(error));
+            return Err(cleanup_startup_firewall(
+                nft_applier.as_ref(),
+                &routing,
+                RuntimeError::Configuration(error),
+                "interface index binding",
+            ));
         }
         if let Err(error) = nft_applier.apply(&routing) {
             drop(devices);
-            if let Err(cleanup) = nft_applier.remove(&routing) {
-                return Err(RuntimeError::FatalTransition(format!(
-                    "numeric firewall install failed ({error}); cleanup failed ({cleanup})"
-                )));
-            }
-            return Err(error.into());
+            return Err(cleanup_startup_firewall(
+                nft_applier.as_ref(),
+                &routing,
+                error.into(),
+                "numeric firewall install",
+            ));
         }
 
         // Close the lookup-to-activation race as far as userspace can:
@@ -232,12 +232,12 @@ impl Runtime {
                 tracing::error!(%error, "startup policy-routing rollback failed; retaining nftables policy");
                 return Err(RuntimeError::FatalTransition(error.to_string()));
             }
-            if let Err(cleanup) = nft_applier.remove(&routing) {
-                return Err(RuntimeError::FatalTransition(format!(
-                    "policy-routing setup failed ({error}); nftables cleanup failed ({cleanup})"
-                )));
-            }
-            return Err(error.into());
+            return Err(cleanup_startup_firewall(
+                nft_applier.as_ref(),
+                &routing,
+                error.into(),
+                "policy-routing setup",
+            ));
         }
 
         let forwarding_state = if config.daemon.manage_ip_forwarding {
@@ -269,12 +269,12 @@ impl Runtime {
                         );
                         return Err(error);
                     }
-                    if let Err(cleanup) = nft_applier.remove(&routing) {
-                        return Err(RuntimeError::FatalTransition(format!(
-                            "forwarding setup failed ({error}); nftables cleanup failed ({cleanup})"
-                        )));
-                    }
-                    return Err(error);
+                    return Err(cleanup_startup_firewall(
+                        nft_applier.as_ref(),
+                        &routing,
+                        error,
+                        "forwarding setup",
+                    ));
                 }
             }
         } else {
@@ -450,6 +450,27 @@ impl ControlApi for Runtime {
     }
 }
 
+fn cleanup_startup_firewall(
+    applier: &dyn NftApplier,
+    plan: &RoutingPlan,
+    original_error: RuntimeError,
+    context: &str,
+) -> RuntimeError {
+    match applier.remove(plan) {
+        Ok(()) => original_error,
+        Err(cleanup_error) => RuntimeError::FatalTransition(format!(
+            "{context} failed ({original_error}); nftables cleanup failed ({cleanup_error})"
+        )),
+    }
+}
+
+fn remove_shutdown_firewall(
+    applier: &dyn NftApplier,
+    plan: &RoutingPlan,
+) -> Result<(), LinuxError> {
+    applier.remove(plan)
+}
+
 fn runtime_control_error(error: RuntimeError) -> ControlError {
     let kind = match &error {
         RuntimeError::Configuration(_) => ControlErrorKind::Configuration,
@@ -507,7 +528,7 @@ impl Drop for Runtime {
                 fatal_error = ?self.fatal_error,
                 "original TUN identity was lost; retaining fail-closed nftables policy"
             );
-        } else if let Err(error) = self.nft_applier.remove(&self.routing) {
+        } else if let Err(error) = remove_shutdown_firewall(self.nft_applier.as_ref(), &self.routing) {
             tracing::error!(%error, "failed to remove vpn-relay nftables policy");
         }
     }

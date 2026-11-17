@@ -2,6 +2,21 @@
 
 use super::*;
 
+fn apply_reload_firewall<F>(
+    applier: &dyn NftApplier,
+    plan: &RoutingPlan,
+    rollback: F,
+) -> Result<(), RuntimeError>
+where
+    F: FnOnce() -> Result<(), RuntimeError>,
+{
+    if let Err(apply_error) = applier.apply(plan) {
+        rollback()?;
+        return Err(apply_error.into());
+    }
+    Ok(())
+}
+
 pub(super) fn commit_peer_replacements(
     devices: &mut [Box<dyn TunnelHandle>],
     changed_interfaces: &[(usize, String)],
@@ -213,10 +228,10 @@ impl Runtime {
         };
 
         if self.routing != next_routing {
-            if let Err(error) = self.nft_applier.apply(&next_routing) {
-                self.rollback_reload(&committed, route_resources_changed.then_some(&next_routing))?;
-                return Err(error.into());
-            }
+            let applier = self.nft_applier.as_ref();
+            apply_reload_firewall(applier, &next_routing, || {
+                self.rollback_reload(&committed, route_resources_changed.then_some(&next_routing))
+            })?;
         }
 
         let previous_routing = self.routing.clone();
