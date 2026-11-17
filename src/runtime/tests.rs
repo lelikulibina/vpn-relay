@@ -1425,3 +1425,135 @@ fn runtime_control_errors_preserve_stable_categories() {
         assert_eq!(control_error.kind, expected_kind);
     }
 }
+
+
+struct FaultInjectingNftApplier {
+    fail_apply: bool,
+    fail_remove: bool,
+    calls: std::cell::RefCell<Vec<&'static str>>,
+}
+
+impl FaultInjectingNftApplier {
+    fn new(fail_apply: bool, fail_remove: bool) -> Self {
+        Self {
+            fail_apply,
+            fail_remove,
+            calls: std::cell::RefCell::new(Vec::new()),
+        }
+    }
+
+    fn error(operation: &str) -> LinuxError {
+        LinuxError::Command {
+            program: format!("nft {operation}"),
+            status: "exit status: 1".to_owned(),
+            stderr: format!("injected {operation} failure"),
+        }
+    }
+}
+
+impl NftApplier for FaultInjectingNftApplier {
+    fn apply(&self, _plan: &RoutingPlan) -> Result<(), LinuxError> {
+        self.calls.borrow_mut().push("apply");
+        if self.fail_apply {
+            Err(Self::error("apply"))
+        } else {
+            Ok(())
+        }
+    }
+
+    fn remove(&self, _plan: &RoutingPlan) -> Result<(), LinuxError> {
+        self.calls.borrow_mut().push("remove");
+        if self.fail_remove {
+            Err(Self::error("remove"))
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn nft_test_routing_plan() -> RoutingPlan {
+    RoutingPlan::from_config(&peer_test_config("peer-a", "peer-b"))
+}
+
+#[test]
+fn startup_cleanup_failure_promotes_original_error_to_fatal_transition() {
+    let applier = FaultInjectingNftApplier::new(false, true);
+    let error = cleanup_startup_firewall(
+        &applier,
+        &nft_test_routing_plan(),
+        RuntimeError::Configuration("interface setup failed".to_owned()),
+        "interface setup",
+    );
+
+    assert!(matches!(
+        error,
+        RuntimeError::FatalTransition(message)
+            if message.contains("interface setup failed")
+                && message.contains("injected remove failure")
+    ));
+    assert_eq!(*applier.calls.borrow(), vec!["remove"]);
+}
+
+#[test]
+fn startup_cleanup_success_preserves_original_error() {
+    let applier = FaultInjectingNftApplier::new(false, false);
+    let error = cleanup_startup_firewall(
+        &applier,
+        &nft_test_routing_plan(),
+        RuntimeError::Configuration("invalid interface".to_owned()),
+        "interface setup",
+    );
+
+    assert!(matches!(
+        error,
+        RuntimeError::Configuration(message) if message == "invalid interface"
+    ));
+    assert_eq!(*applier.calls.borrow(), vec!["remove"]);
+}
+
+#[test]
+fn reload_firewall_apply_failure_runs_rollback_and_preserves_apply_error() {
+    let applier = FaultInjectingNftApplier::new(true, false);
+    let mut rollback_called = false;
+    let result = apply_reload_firewall(&applier, &nft_test_routing_plan(), || {
+        rollback_called = true;
+        Ok(())
+    });
+
+    assert!(matches!(
+        result,
+        Err(RuntimeError::Linux(LinuxError::Command { stderr, .. }))
+            if stderr == "injected apply failure"
+    ));
+    assert!(rollback_called, "reload rollback was not invoked");
+    assert_eq!(*applier.calls.borrow(), vec!["apply"]);
+}
+
+#[test]
+fn reload_firewall_apply_and_rollback_failure_is_fatal() {
+    let applier = FaultInjectingNftApplier::new(true, false);
+    let result = apply_reload_firewall(&applier, &nft_test_routing_plan(), || {
+        Err(RuntimeError::FatalTransition(
+            "peer rollback failed".to_owned(),
+        ))
+    });
+
+    assert!(matches!(
+        result,
+        Err(RuntimeError::FatalTransition(message))
+            if message.contains("peer rollback failed")
+    ));
+    assert_eq!(*applier.calls.borrow(), vec!["apply"]);
+}
+
+#[test]
+fn shutdown_firewall_remove_failure_is_returned_for_explicit_logging() {
+    let applier = FaultInjectingNftApplier::new(false, true);
+    let result = remove_shutdown_firewall(&applier, &nft_test_routing_plan());
+
+    assert!(matches!(
+        result,
+        Err(LinuxError::Command { stderr, .. }) if stderr == "injected remove failure"
+    ));
+    assert_eq!(*applier.calls.borrow(), vec!["remove"]);
+}
