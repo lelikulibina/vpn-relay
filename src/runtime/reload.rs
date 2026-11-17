@@ -2,7 +2,7 @@
 
 use super::*;
 
-fn apply_reload_firewall<F>(
+pub(super) fn apply_reload_firewall<F>(
     apply_result: Result<(), LinuxError>,
     rollback: F,
 ) -> Result<(), RuntimeError>
