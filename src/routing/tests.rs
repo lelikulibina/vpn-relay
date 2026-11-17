@@ -649,6 +649,37 @@ fn firewall_model_preserves_table_chain_and_set_identity() {
     assert_eq!(ipv6.data_type, FirewallSetType::IfName);
     assert_eq!(ipv6.elements, managed.elements);
 
+    let mut indexed_plan = RoutingPlan::from_config(&sample_config());
+    indexed_plan
+        .bind_interface_indices(BTreeMap::from([
+            ("wg-server".to_owned(), 17),
+            ("awg-primary".to_owned(), 18),
+            ("awg-secondary".to_owned(), 19),
+        ]))
+        .unwrap();
+    let indexed = indexed_plan.firewall_ruleset().unwrap();
+    let indexed_managed = indexed
+        .sets
+        .iter()
+        .find(|set| set.name == "managed_interfaces")
+        .unwrap();
+    assert_eq!(indexed_managed.data_type, FirewallSetType::IfaceIndex);
+    assert_eq!(
+        indexed_managed.elements,
+        [
+            InterfaceSelector::Index(18),
+            InterfaceSelector::Index(19),
+            InterfaceSelector::Index(17),
+        ]
+    );
+    let indexed_ipv6 = indexed
+        .sets
+        .iter()
+        .find(|set| set.name == "ipv6_drop_interfaces")
+        .unwrap();
+    assert_eq!(indexed_ipv6.data_type, FirewallSetType::IfaceIndex);
+    assert_eq!(indexed_ipv6.elements, indexed_managed.elements);
+
     let bootstrap = plan.fail_closed_bootstrap().firewall_ruleset().unwrap();
     assert!(bootstrap.is_bootstrap);
     assert!(bootstrap
