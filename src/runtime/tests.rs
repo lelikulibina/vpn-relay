@@ -1426,7 +1426,6 @@ fn runtime_control_errors_preserve_stable_categories() {
     }
 }
 
-
 struct FaultInjectingNftApplier {
     fail_apply: bool,
     fail_remove: bool,
