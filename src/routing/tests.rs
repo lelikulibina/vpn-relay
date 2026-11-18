@@ -1038,6 +1038,40 @@ fn firewall_model_preserves_numeric_identity_guards() {
             );
         }
     }
+    let forward = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "forward")
+        .unwrap();
+    let name_guard_order: Vec<_> = forward
+        .rules
+        .iter()
+        .filter_map(|rule| match rule.expressions.first()? {
+            FirewallExpression::Compare {
+                left,
+                operator: FirewallCompareOperator::Equal,
+                right: FirewallValue::String(interface),
+            } if matches!(
+                left.as_ref(),
+                FirewallExpression::Meta(FirewallMetaKey::IifName | FirewallMetaKey::OifName)
+            ) => Some(interface.as_str()),
+            _ => None,
+        })
+        .filter(|interface| {
+            ["awg-primary", "awg-secondary", "wg-server"].contains(interface)
+        })
+        .collect();
+    assert_eq!(
+        name_guard_order,
+        [
+            "awg-primary",
+            "awg-primary",
+            "awg-secondary",
+            "awg-secondary",
+            "wg-server",
+            "wg-server"
+        ]
+    );
 }
 
 #[test]
@@ -1125,12 +1159,16 @@ fn firewall_model_serializes_typed_nftables_schema() {
         .filter_map(|object| object.get("add")?.get("rule"))
         .collect();
     assert!(all_rules.iter().any(|rule| {
-        rule["expr"].as_array().is_some_and(|items| items.iter().any(|expression| {
-            expression["match"]["left"]["payload"]["protocol"] == "ip"
-                && expression["match"]["right"]["set"].as_array().is_some_and(|values| {
-                    values.iter().any(|value| value["prefix"].is_object())
-                })
-        }))
+        rule["expr"].as_array().is_some_and(|items| {
+            items.iter().any(|expression| {
+                expression["match"]["left"]["payload"]["protocol"] == "ip"
+                    && expression["match"]["right"]["set"]
+                        .as_array()
+                        .is_some_and(|values| {
+                            values.iter().any(|value| value["prefix"].is_object())
+                        })
+            })
+        })
     }));
     assert!(expressions.iter().any(|expression| {
         expression["match"]["op"] == "in"

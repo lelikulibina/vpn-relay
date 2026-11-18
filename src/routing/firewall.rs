@@ -444,14 +444,22 @@ impl RoutingPlan {
                 false,
             );
             append_identity_guards(&mut input, &self.managed_interfaces, true, indices, false);
-            append_identity_guards(
-                &mut forward,
-                &self.managed_interfaces,
-                false,
-                indices,
-                false,
-            );
-            append_identity_guards(&mut forward, &self.managed_interfaces, false, indices, true);
+            for interface in &self.managed_interfaces {
+                append_identity_guards(
+                    &mut forward,
+                    std::slice::from_ref(interface),
+                    false,
+                    indices,
+                    false,
+                );
+                append_identity_guards(
+                    &mut forward,
+                    std::slice::from_ref(interface),
+                    false,
+                    indices,
+                    true,
+                );
+            }
             append_identity_guards(&mut output, &self.managed_interfaces, false, indices, true);
         }
         if !self.ipv6_drop_interfaces.is_empty() {
