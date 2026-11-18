@@ -315,10 +315,14 @@ exec "$REAL_IP_CONFIG" "\$@"
 EOF
 cat >"$TMP/fail-interface-and-nft-cleanup/nft" <<EOF
 #!/bin/sh
-if [ "\$1" = "delete" ] && [ "\$2" = "table" ] \\
-    && [ "\$3" = "inet" ] && [ "\$4" = "vpn_relay_it" ]; then
-    echo "injected nftables deletion failure during startup rollback" >&2
-    exit 43
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ] && [ "\$3" = "-" ]; then
+    payload=\$(cat)
+    if printf '%s' "\$payload" | grep -Fq '"delete"' && printf '%s' "\$payload" | grep -Fq '"vpn_relay_it"'; then
+        echo "injected nftables deletion failure during startup rollback" >&2
+        exit 43
+    fi
+    printf '%s\n' "\$payload" | "$REAL_NFT_CLEANUP" "\$@"
+    exit \$?
 fi
 exec "$REAL_NFT_CLEANUP" "\$@"
 EOF
@@ -355,7 +359,7 @@ REAL_IP="$(command -v ip)"
 mkdir -p "$TMP/fail-bootstrap-nft" "$TMP/fail-indexed-nft"
 cat >"$TMP/fail-bootstrap-nft/nft" <<EOF
 #!/bin/sh
-if [ "\$1" = "-f" ]; then
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ] && [ "\$3" = "-" ]; then
     echo "injected bootstrap nftables transaction failure" >&2
     exit 42
 fi
@@ -364,7 +368,7 @@ EOF
 cat >"$TMP/fail-indexed-nft/nft" <<EOF
 #!/bin/sh
 COUNT_FILE="$TMP/indexed-nft-count"
-if [ "\$1" = "-f" ]; then
+if [ "\$1" = "-j" ] && [ "\$2" = "-f" ] && [ "\$3" = "-" ]; then
     count=0
     [ ! -f "\$COUNT_FILE" ] || count=\$(cat "\$COUNT_FILE")
     count=\$((count + 1))
@@ -630,7 +634,7 @@ exec "$REAL_IP" "\$@"
 EOF
 cat >"$TMP/fail-nft-bin/nft" <<EOF
 #!/bin/sh
-if [ -f "$TMP/fail-nft" ] && [ "\$1" = "-f" ]; then
+if [ -f "$TMP/fail-nft" ] && [ "\$1" = "-j" ] && [ "\$2" = "-f" ] && [ "\$3" = "-" ]; then
     cat >/dev/null
     echo "injected nftables transaction failure" >&2
     exit 42

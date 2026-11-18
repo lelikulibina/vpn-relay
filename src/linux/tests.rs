@@ -1,6 +1,7 @@
 use super::nft::{
-    apply_nft_with, build_nftables_batch, inspect_nft_table_with, is_missing_table_error,
-    map_nftables_error, remove_nft_with, table_is_owned, table_is_owned_text,
+    apply_nft_json_with, apply_nft_with, build_nftables_batch, inspect_nft_table_with,
+    is_missing_table_error, map_nftables_error, remove_nft_json_with, remove_nft_with,
+    table_is_owned, table_is_owned_text,
 };
 use super::*;
 use crate::routing::RoutingPlan;
@@ -1268,6 +1269,87 @@ fn recognizes_owned_default_routes_and_kernel_metadata() {
         "default dev awg-primary proto 242 mtu 1400",
         "awg-primary"
     ));
+}
+
+#[test]
+fn nft_json_apply_submits_typed_batch_once_and_preserves_owned_replacement() {
+    let plan = cleanup_test_plan();
+    let mut submissions = Vec::new();
+    apply_nft_json_with(&plan, &mut |_plan| Ok(true), &mut |payload| {
+        submissions.push(serde_json::from_str::<serde_json::Value>(payload).unwrap());
+        Ok(())
+    })
+    .unwrap();
+
+    assert_eq!(submissions.len(), 1, "one JSON transaction must be submitted");
+    let objects = submissions[0]["nftables"].as_array().unwrap();
+    assert_eq!(
+        objects[0]["delete"]["table"],
+        serde_json::json!({"family": "inet", "name": "vpn_relay"})
+    );
+    assert_eq!(objects[1]["add"]["table"]["comment"], "managed by vpn-relay");
+}
+
+#[test]
+fn nft_json_apply_does_not_submit_when_ownership_inspection_fails() {
+    let plan = cleanup_test_plan();
+    let mut submissions = 0;
+    let result = apply_nft_json_with(
+        &plan,
+        &mut |_plan| Err(LinuxError::Conflict {
+            resource: "nft table inet vpn_relay".into(),
+            details: "unowned table".into(),
+        }),
+        &mut |_payload| {
+            submissions += 1;
+            Ok(())
+        },
+    );
+    assert!(matches!(result, Err(LinuxError::Conflict { .. })));
+    assert_eq!(submissions, 0);
+}
+
+#[test]
+fn nft_json_remove_skips_missing_table_and_submits_owned_delete_once() {
+    let plan = cleanup_test_plan();
+    let mut submissions = Vec::new();
+    remove_nft_json_with(&plan, &mut |_plan| Ok(false), &mut |payload| {
+        submissions.push(payload.to_owned());
+        Ok(())
+    })
+    .unwrap();
+    assert!(submissions.is_empty());
+
+    remove_nft_json_with(&plan, &mut |_plan| Ok(true), &mut |payload| {
+        submissions.push(payload.to_owned());
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(submissions.len(), 1);
+    let batch: serde_json::Value = serde_json::from_str(&submissions[0]).unwrap();
+    assert_eq!(
+        batch["nftables"][0]["delete"]["table"],
+        serde_json::json!({"family": "inet", "name": "vpn_relay"})
+    );
+}
+
+#[test]
+fn nft_json_remove_does_not_submit_when_ownership_inspection_fails() {
+    let plan = cleanup_test_plan();
+    let mut submissions = 0;
+    let result = remove_nft_json_with(
+        &plan,
+        &mut |_plan| Err(LinuxError::Conflict {
+            resource: "nft table inet vpn_relay".into(),
+            details: "ownership unknown".into(),
+        }),
+        &mut |_payload| {
+            submissions += 1;
+            Ok(())
+        },
+    );
+    assert!(matches!(result, Err(LinuxError::Conflict { .. })));
+    assert_eq!(submissions, 0);
 }
 
 #[test]

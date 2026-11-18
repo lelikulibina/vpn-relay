@@ -1,10 +1,12 @@
 //! nftables table ownership and transactional policy application.
-use super::exec::run;
 use super::LinuxError;
 use crate::routing::RoutingPlan;
 use serde_json::Value;
+#[cfg(test)]
 use std::io::Write;
-use std::process::{Command, Stdio};
+use std::process::Command;
+#[cfg(test)]
+use std::process::Stdio;
 
 /// Serialize the typed firewall model as one nftables JSON transaction.
 /// When replacing an existing owned table, delete it before adding the new
@@ -224,6 +226,62 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
     inspect_nft_table_with(plan, &mut get_current_ruleset_json, &mut get_nft_table_text)
 }
 
+/// Serialize and submit a typed JSON batch through nftables-rs.
+fn submit_nft_json(payload: &str) -> Result<(), LinuxError> {
+    nftables::helper::apply_ruleset_raw(payload, Some("nft"), std::iter::empty::<&str>())
+        .map(|_| ())
+        .map_err(map_nftables_error)
+}
+
+pub(super) fn apply_nft_json_with<I, R>(
+    plan: &RoutingPlan,
+    inspect_table: &mut I,
+    submit_json: &mut R,
+) -> Result<(), LinuxError>
+where
+    I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
+    R: FnMut(&str) -> Result<(), LinuxError>,
+{
+    let replace_owned = inspect_table(plan)?;
+    let batch = build_nftables_batch(plan, replace_owned)?;
+    let payload = serde_json::to_string(&batch).map_err(|error| LinuxError::Command {
+        program: "nft JSON batch".into(),
+        status: "serialization failed".into(),
+        stderr: error.to_string(),
+    })?;
+    submit_json(&payload)
+}
+
+pub(super) fn remove_nft_json_with<I, R>(
+    plan: &RoutingPlan,
+    inspect_table: &mut I,
+    submit_json: &mut R,
+) -> Result<(), LinuxError>
+where
+    I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
+    R: FnMut(&str) -> Result<(), LinuxError>,
+{
+    if !inspect_table(plan)? {
+        return Ok(());
+    }
+    let batch = serde_json::json!({
+        "nftables": [{
+            "delete": {
+                "table": {
+                    "family": plan.nft_family,
+                    "name": plan.nft_table,
+                }
+            }
+        }]
+    });
+    let payload = serde_json::to_string(&batch).map_err(|error| LinuxError::Command {
+        program: "nft JSON delete".into(),
+        status: "serialization failed".into(),
+        stderr: error.to_string(),
+    })?;
+    submit_json(&payload)
+}
+
 /// Runtime-facing abstraction for applying and removing firewall policies.
 ///
 /// Implementations preserve ownership checks and atomic batch semantics. The
@@ -234,17 +292,17 @@ pub(crate) trait NftApplier {
     fn remove(&self, plan: &RoutingPlan) -> Result<(), LinuxError>;
 }
 
-/// Production implementation backed by the existing nft command/script adapter.
+/// Production implementation backed by nftables-rs JSON transactions.
 #[derive(Default)]
 pub(crate) struct SystemNftApplier;
 
 impl NftApplier for SystemNftApplier {
     fn apply(&self, plan: &RoutingPlan) -> Result<(), LinuxError> {
-        apply_nft_with(plan, &mut inspect_nft_table, &mut run_nft_script)
+        apply_nft_json_with(plan, &mut inspect_nft_table, &mut submit_nft_json)
     }
 
     fn remove(&self, plan: &RoutingPlan) -> Result<(), LinuxError> {
-        remove_nft_with(plan, &mut inspect_nft_table, &mut run)
+        remove_nft_json_with(plan, &mut inspect_nft_table, &mut submit_nft_json)
     }
 }
 
@@ -253,6 +311,7 @@ pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     SystemNftApplier.apply(plan)
 }
 
+#[cfg(test)]
 pub(super) fn apply_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
@@ -275,6 +334,7 @@ where
 
 /// Submit one complete nftables batch. nft applies a batch transactionally:
 /// a rejected batch leaves the previous table intact.
+#[cfg(test)]
 fn run_nft_script(script: &str) -> Result<(), LinuxError> {
     let mut child = Command::new("nft")
         .args(["-f", "-"])
@@ -321,6 +381,7 @@ pub fn remove_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     SystemNftApplier.remove(plan)
 }
 
+#[cfg(test)]
 pub(super) fn remove_nft_with<I, R>(
     plan: &RoutingPlan,
     inspect_table: &mut I,
