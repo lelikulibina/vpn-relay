@@ -168,6 +168,7 @@ ip netns exec "$NS" nft 'add chain inet foreign_filter output { type filter hook
 # A foreign table with the configured name must be preserved. Startup must
 # fail and roll back policy rules and TUN devices instead of deleting it.
 ip netns exec "$NS" nft add table inet vpn_relay_it
+ip netns exec "$NS" nft 'add chain inet vpn_relay_it foreign_chain { comment "managed by vpn-relay"; }'
 ip netns exec "$NS" "$BIN" --config "$TMP/config.toml" >"$TMP/conflict.log" 2>&1 &
 DAEMON_PID=$!
 for _ in $(seq 1 30); do
