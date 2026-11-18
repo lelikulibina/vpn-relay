@@ -17,8 +17,6 @@ use crate::control::{ControlRequest, ControlResponse};
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError, NftApplier, SystemNftApplier};
 use crate::routing::RoutingPlan;
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine as _;
 use forwarding::*;
 use lock::InstanceLock;
 use reload::*;
@@ -387,7 +385,7 @@ impl Runtime {
                         .peers
                         .into_iter()
                         .map(|peer| PeerStats {
-                            public_key: base64_key(&peer.public_key),
+                            public_key: hex_key(&peer.public_key),
                             client_ips: peer.allowed_ips,
                             endpoint: peer.endpoint,
                             tx_bytes: peer.tx_bytes,
@@ -559,8 +557,8 @@ fn install_signal_handlers() -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn base64_key(key: &[u8; 32]) -> String {
-    BASE64_STANDARD.encode(key)
+fn hex_key(key: &[u8; 32]) -> String {
+    key.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 #[cfg(test)]

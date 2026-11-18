@@ -784,8 +784,8 @@ impl FirewallRuleset {
     pub(crate) fn to_json_value(&self) -> Result<serde_json::Value, serde_json::Error> {
         use serde_json::{json, Value};
 
-        fn value(value: &FirewallValue) -> Value {
-            match value {
+        fn value(item: &FirewallValue) -> Value {
+            match item {
                 FirewallValue::String(value) => json!(value),
                 FirewallValue::Number(value) => json!(value),
                 FirewallValue::State(values) => json!({ "set": values }),

@@ -1367,18 +1367,8 @@ fn get_stats_control_request_uses_tagged_operation() {
 }
 
 #[test]
-fn peer_public_keys_are_serialized_as_standard_base64() {
-    let key = [0xab; 32];
-    let encoded = super::base64_key(&key);
-    assert_eq!(encoded.len(), 44);
-    assert!(encoded.ends_with('='));
-    use base64::Engine as _;
-    assert_eq!(
-        base64::engine::general_purpose::STANDARD
-            .decode(encoded)
-            .unwrap(),
-        key
-    );
+fn peer_public_keys_remain_hex_in_control_stats_wire_format() {
+    assert_eq!(super::hex_key(&[0xab; 32]), "ab".repeat(32));
 }
 
 #[test]

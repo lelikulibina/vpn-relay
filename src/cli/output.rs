@@ -1,5 +1,9 @@
 #[cfg(target_os = "linux")]
 use crate::InterfaceStats;
+#[cfg(target_os = "linux")]
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+#[cfg(target_os = "linux")]
+use base64::Engine as _;
 
 #[cfg(target_os = "linux")]
 const RECENT_HANDSHAKE_SECS: u64 = 180;
@@ -37,7 +41,11 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
 
         println!(
             "\nИнтерфейс: {}  |  Пиров: {}  |  Handshake ≤ 3 мин: {}  |  RX: {}  |  TX: {}",
-            interface.name, peer_count, recent, format_bytes(rx), format_bytes(tx)
+            interface.name,
+            peer_count,
+            recent,
+            format_bytes(rx),
+            format_bytes(tx)
         );
 
         if interface.peers.is_empty() {
@@ -96,15 +104,33 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
 fn format_peer_key(key: &str) -> String {
     const PREFIX: usize = 10;
     const SUFFIX: usize = 8;
-    let chars: Vec<char> = key.chars().collect();
+    let display_key = decode_hex_key(key)
+        .map(|bytes| BASE64_STANDARD.encode(bytes))
+        .unwrap_or_else(|| key.to_owned());
+    let chars: Vec<char> = display_key.chars().collect();
     if chars.len() <= PREFIX + SUFFIX + 1 {
-        return key.to_owned();
+        return display_key;
     }
     format!(
         "{}…{}",
         chars[..PREFIX].iter().collect::<String>(),
         chars[chars.len() - SUFFIX..].iter().collect::<String>()
     )
+}
+
+#[cfg(target_os = "linux")]
+fn decode_hex_key(key: &str) -> Option<Vec<u8>> {
+    if key.len() != 64 || !key.is_ascii() {
+        return None;
+    }
+    key.as_bytes()
+        .chunks_exact(2)
+        .map(|pair| {
+            let high = (pair[0] as char).to_digit(16)?;
+            let low = (pair[1] as char).to_digit(16)?;
+            Some(((high << 4) | low) as u8)
+        })
+        .collect()
 }
 
 #[cfg(target_os = "linux")]
@@ -186,9 +212,11 @@ mod tests {
 
     #[test]
     fn peer_key_is_shortened_in_the_middle_without_changing_base64_edges() {
-        let key = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr==";
-        assert_eq!(format_peer_key(key), "ABCDEFGHIJ…klmnopqr");
+        let hex_key = "ab".repeat(32);
+        assert_eq!(format_peer_key(&hex_key), "q6urq6urq6…q6urq6s=");
         assert_eq!(format_peer_key("short-key"), "short-key");
+        assert_eq!(decode_hex_key(&"ab".repeat(32)), Some(vec![0xab; 32]));
+        assert_eq!(decode_hex_key("not-hex"), None);
     }
 
     #[test]
