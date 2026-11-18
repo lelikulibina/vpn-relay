@@ -97,6 +97,7 @@ pub(crate) enum FirewallValue {
     String(String),
     Number(u32),
     State(Vec<String>),
+    Set(Vec<FirewallValue>),
     Prefix { address: Ipv4Addr, prefix_len: u8 },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -941,8 +942,7 @@ impl FirewallRuleset {
 
         for chain in &self.chains {
             for rule in &chain.rules {
-                let mut statements: Vec<_> =
-                    rule.expressions.iter().map(expression).collect();
+                let mut statements: Vec<_> = rule.expressions.iter().map(expression).collect();
                 statements.extend(rule.actions.iter().map(action));
                 objects.push(json!({"add": {"rule": {
                     "family": self.family,
