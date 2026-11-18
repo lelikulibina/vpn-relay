@@ -232,3 +232,34 @@ where
         ],
     )
 }
+
+
+#[cfg(test)]
+pub(super) fn map_nftables_error(
+    error: nftables::helper::NftablesError,
+) -> LinuxError {
+    let _ = error;
+    unimplemented!("RED: map nftables helper errors")
+}
+
+#[cfg(test)]
+pub(super) fn is_missing_table_error(
+    error: &nftables::helper::NftablesError,
+) -> bool {
+    let _ = error;
+    unimplemented!("RED: classify missing nftables table")
+}
+
+#[cfg(test)]
+pub(super) fn inspect_nft_table_with<J, T>(
+    plan: &RoutingPlan,
+    get_json: &mut J,
+    get_text: &mut T,
+) -> Result<bool, LinuxError>
+where
+    J: FnMut(&RoutingPlan) -> Result<String, nftables::helper::NftablesError>,
+    T: FnMut(&RoutingPlan) -> Result<String, LinuxError>,
+{
+    let _ = (plan, get_json, get_text);
+    unimplemented!("RED: inject nftables ownership readers")
+}

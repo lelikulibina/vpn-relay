@@ -1,4 +1,7 @@
-use super::nft::{apply_nft_with, remove_nft_with, table_is_owned, table_is_owned_text};
+use super::nft::{
+    apply_nft_with, inspect_nft_table_with, is_missing_table_error, map_nftables_error,
+    remove_nft_with, table_is_owned, table_is_owned_text,
+};
 use super::*;
 use crate::routing::RoutingPlan;
 
@@ -1049,6 +1052,137 @@ fn interface_identity_propagates_missing_link_lookup_errors() {
         missing_index,
         Err(LinuxError::Conflict { details, .. }) if details == "interface index disappeared"
     ));
+}
+
+
+fn nft_failed(stderr: &str) -> nftables::helper::NftablesError {
+    nftables::helper::NftablesError::NftFailed {
+        program: "nft".into(),
+        hint: "getting the current ruleset".into(),
+        stdout: String::new(),
+        stderr: stderr.into(),
+    }
+}
+
+#[test]
+fn nftables_helper_errors_preserve_spawn_and_command_details() {
+    let spawn = nftables::helper::NftablesError::NftExecution {
+        program: "nft".into(),
+        inner: std::io::Error::other("missing executable"),
+    };
+    assert!(matches!(
+        map_nftables_error(spawn),
+        LinuxError::Spawn { ref program, .. } if program == "nft"
+    ));
+
+    let failed = nftables::helper::NftablesError::NftFailed {
+        program: "nft".into(),
+        hint: "getting the current ruleset".into(),
+        stdout: "partial output".into(),
+        stderr: "permission denied".into(),
+    };
+    assert!(matches!(
+        map_nftables_error(failed),
+        LinuxError::Command { ref program, ref stderr, .. }
+            if program.contains("nft")
+                && stderr.contains("permission denied")
+                && stderr.contains("partial output")
+    ));
+
+    let invalid_utf8 = nftables::helper::NftablesError::NftOutputEncoding {
+        program: "nft".into(),
+        inner: String::from_utf8(vec![0xff]).unwrap_err(),
+    };
+    assert!(matches!(
+        map_nftables_error(invalid_utf8),
+        LinuxError::Command { ref status, .. } if status.contains("UTF-8")
+    ));
+
+    let invalid_json = nftables::helper::NftablesError::NftInvalidJson(
+        serde_json::from_str::<serde_json::Value>("{").unwrap_err(),
+    );
+    assert!(matches!(
+        map_nftables_error(invalid_json),
+        LinuxError::Command { ref status, .. } if status.contains("JSON")
+    ));
+}
+
+#[test]
+fn nftables_not_found_detection_is_narrow() {
+    assert!(is_missing_table_error(&nft_failed("No such file or directory")));
+    assert!(is_missing_table_error(&nft_failed("table does not exist")));
+    assert!(!is_missing_table_error(&nft_failed("Operation not permitted")));
+    assert!(!is_missing_table_error(
+        &nftables::helper::NftablesError::NftExecution {
+            program: "nft".into(),
+            inner: std::io::Error::other("spawn failed"),
+        }
+    ));
+}
+
+#[test]
+fn inspect_nft_table_accepts_only_exact_json_ownership() {
+    let plan = cleanup_test_plan();
+    let owned = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
+    let result = inspect_nft_table_with(
+        &plan,
+        &mut |_plan| Ok(owned.into()),
+        &mut |_plan| panic!("text fallback must not run for an owned JSON table"),
+    );
+    assert!(result.unwrap());
+}
+
+#[test]
+fn inspect_nft_table_uses_text_fallback_for_missing_json_comment() {
+    let plan = cleanup_test_plan();
+    let json_without_comment =
+        r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}}]}"#;
+    let owned_text = r#"table inet vpn_relay {
+    comment "managed by vpn-relay"
+}
+"#;
+    let result = inspect_nft_table_with(
+        &plan,
+        &mut |_plan| Ok(json_without_comment.into()),
+        &mut |_plan| Ok(owned_text.into()),
+    );
+    assert!(result.unwrap());
+}
+
+#[test]
+fn inspect_nft_table_rejects_nested_or_foreign_markers() {
+    let plan = cleanup_test_plan();
+    let json_with_nested_comment = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"chain":{"family":"inet","table":"vpn_relay","name":"foreign","comment":"managed by vpn-relay"}}]}"#;
+    let nested_text = r#"table inet vpn_relay {
+    chain foreign {
+        comment "managed by vpn-relay"
+    }
+}
+"#;
+    let result = inspect_nft_table_with(
+        &plan,
+        &mut |_plan| Ok(json_with_nested_comment.into()),
+        &mut |_plan| Ok(nested_text.into()),
+    );
+    assert!(matches!(result, Err(LinuxError::Conflict { .. })));
+}
+
+#[test]
+fn inspect_nft_table_returns_false_only_for_missing_table() {
+    let plan = cleanup_test_plan();
+    let result = inspect_nft_table_with(
+        &plan,
+        &mut |_plan| Err(nft_failed("No such file or directory")),
+        &mut |_plan| panic!("text fallback must not run when table is absent"),
+    );
+    assert!(!result.unwrap());
+
+    let result = inspect_nft_table_with(
+        &plan,
+        &mut |_plan| Err(nft_failed("Operation not permitted")),
+        &mut |_plan| panic!("text fallback must not run after a command failure"),
+    );
+    assert!(matches!(result, Err(LinuxError::Command { .. })));
 }
 
 #[test]

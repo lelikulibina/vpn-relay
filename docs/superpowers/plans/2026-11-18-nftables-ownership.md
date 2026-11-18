@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-11-18-nftables-ownership-design.md`
 
+## Execution Notes
+
+- Ruling: локального рабочего окружения нет; выполнение и проверки проводятся через GitHub API и GitHub Actions. Коммиты и обновлённые чекбоксы плана служат журналом выполнения вместо локального worktree ledger.
+- Ruling: R3.4 — семантически сохраняющий рефакторинг ownership inspection. Существующие characterization tests должны проходить на baseline; новые assertions добавляются до переключения helper path. Не создавать искусственные failing stubs только ради RED-прогона.
+
 ## Global Constraints
 
 - Ownership marker остаётся точной строкой `managed by vpn-relay`.
