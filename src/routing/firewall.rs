@@ -912,10 +912,7 @@ impl FirewallRuleset {
                 let mut index = 0;
                 while index < rule.expressions.len() {
                     if matches!(
-                        (
-                            &rule.expressions[index],
-                            rule.expressions.get(index + 1)
-                        ),
+                        (&rule.expressions[index], rule.expressions.get(index + 1)),
                         (
                             FirewallExpression::Payload { .. },
                             Some(FirewallExpression::Set(_))
