@@ -86,14 +86,14 @@ fn selector_free_routing_firewall_and_masquerade_are_generated() {
 #[test]
 fn managed_input_and_output_default_to_deny_with_explicit_allow_exceptions() {
     let mut config = sample_config();
-    config.firewall.input.rules.push(FirewallRule {
+    config.firewall.input.rules.push(ConfigFirewallRule {
         interface: "wg-server".to_owned(),
         source: Some(vec!["10.0.0.2/32".to_owned()]),
         destination: None,
         protocol: Some(FirewallProtocol::Tcp),
         ports: Some(vec![22, 443]),
     });
-    config.firewall.output.rules.push(FirewallRule {
+    config.firewall.output.rules.push(ConfigFirewallRule {
         interface: "awg-primary".to_owned(),
         source: None,
         destination: Some(vec!["10.0.0.0/24".to_owned()]),
@@ -116,14 +116,14 @@ fn managed_input_and_output_default_to_deny_with_explicit_allow_exceptions() {
 #[test]
 fn icmp_firewall_rules_use_valid_l4_protocol_selectors() {
     let mut config = sample_config();
-    config.firewall.input.rules.push(FirewallRule {
+    config.firewall.input.rules.push(ConfigFirewallRule {
         interface: "wg-server".to_owned(),
         source: Some(vec!["10.0.0.2/32".to_owned()]),
         destination: None,
         protocol: Some(FirewallProtocol::Icmp),
         ports: None,
     });
-    config.firewall.output.rules.push(FirewallRule {
+    config.firewall.output.rules.push(ConfigFirewallRule {
         interface: "awg-primary".to_owned(),
         source: None,
         destination: Some(vec!["203.0.113.1/32".to_owned()]),
