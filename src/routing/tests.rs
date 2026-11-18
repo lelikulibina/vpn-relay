@@ -1148,3 +1148,229 @@ fn firewall_model_preserves_raw_compatibility_fields() {
     assert_eq!(managed_set["type"], "iface_index");
     assert_eq!(managed_set["elem"], serde_json::json!([18, 19, 17]));
 }
+
+
+#[test]
+#[ignore = "requires root, iproute2 and nftables; executed by the network-core CI job"]
+fn typed_firewall_matches_legacy_kernel_rulesets() {
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+
+    struct TestNetns(String);
+    impl Drop for TestNetns {
+        fn drop(&mut self) {
+            let _ = Command::new("ip")
+                .args(["netns", "del", &self.0])
+                .output();
+        }
+    }
+
+    fn run_ip(args: &[&str]) -> std::process::Output {
+        Command::new("ip").args(args).output().expect("run ip")
+    }
+
+    fn setup_netns(name: String) -> (TestNetns, BTreeMap<String, u32>) {
+        let namespace = TestNetns(name);
+        let output = run_ip(&["netns", "add", &namespace.0]);
+        assert!(
+            output.status.success(),
+            "ip netns add failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        for args in [
+            vec!["-n", &namespace.0, "link", "set", "lo", "up"],
+            vec!["-n", &namespace.0, "link", "add", "wg-server", "type", "dummy"],
+            vec!["-n", &namespace.0, "link", "add", "awg-primary", "type", "dummy"],
+            vec!["-n", &namespace.0, "link", "add", "awg-secondary", "type", "dummy"],
+            vec!["-n", &namespace.0, "link", "set", "wg-server", "up"],
+            vec!["-n", &namespace.0, "link", "set", "awg-primary", "up"],
+            vec!["-n", &namespace.0, "link", "set", "awg-secondary", "up"],
+        ] {
+            let output = run_ip(&args);
+            assert!(
+                output.status.success(),
+                "ip {:?} failed: {}",
+                args,
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let output = run_ip(&["-n", &namespace.0, "-j", "link", "show"]);
+        assert!(output.status.success(), "ip -j link show failed");
+        let links: Value = serde_json::from_slice(&output.stdout).unwrap();
+        let indices = ["wg-server", "awg-primary", "awg-secondary"]
+            .into_iter()
+            .map(|name| {
+                let index = links
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .find(|link| link["ifname"] == name)
+                    .and_then(|link| link["ifindex"].as_u64())
+                    .unwrap_or_else(|| panic!("missing ifindex for {name}"));
+                (name.to_owned(), index as u32)
+            })
+            .collect();
+        (namespace, indices)
+    }
+
+    fn apply_nft(namespace: &str, args: &[&str], input: &[u8]) {
+        let mut child = Command::new("ip")
+            .args(["netns", "exec", namespace, "nft"])
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn nft");
+        child
+            .stdin
+            .take()
+            .expect("nft stdin")
+            .write_all(input)
+            .expect("write nft batch");
+        let output = child.wait_with_output().expect("wait for nft");
+        assert!(
+            output.status.success(),
+            "nft {:?} failed in {namespace}: {}",
+            args,
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    fn normalized_ruleset(namespace: &str) -> Value {
+        fn strip_runtime_fields(value: &mut Value) {
+            match value {
+                Value::Array(values) => values.iter_mut().for_each(strip_runtime_fields),
+                Value::Object(fields) => {
+                    fields.retain(|key, _| {
+                        !matches!(key.as_str(), "handle" | "index" | "packets" | "bytes")
+                    });
+                    fields.values_mut().for_each(strip_runtime_fields);
+                }
+                _ => {}
+            }
+        }
+
+        let output = Command::new("ip")
+            .args([
+                "netns",
+                "exec",
+                namespace,
+                "nft",
+                "-j",
+                "list",
+                "table",
+                "inet",
+                "vpn_relay",
+            ])
+            .output()
+            .expect("list nft table");
+        assert!(
+            output.status.success(),
+            "nft list table failed in {namespace}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let mut document: Value = serde_json::from_slice(&output.stdout).unwrap();
+        strip_runtime_fields(&mut document);
+        let objects = document["nftables"].as_array().unwrap();
+        let mut table = None;
+        let mut sets = Vec::new();
+        let mut chains = Vec::new();
+        let mut rules: BTreeMap<String, Vec<Value>> = BTreeMap::new();
+        for object in objects {
+            if let Some(value) = object.get("table") {
+                table = Some(value.clone());
+            } else if let Some(value) = object.get("set") {
+                sets.push(value.clone());
+            } else if let Some(value) = object.get("chain") {
+                chains.push(value.clone());
+            } else if let Some(value) = object.get("rule") {
+                let chain = value["chain"].as_str().unwrap().to_owned();
+                rules.entry(chain).or_default().push(value.clone());
+            }
+        }
+        sets.sort_by(|left, right| left["name"].as_str().cmp(&right["name"].as_str()));
+        chains.sort_by(|left, right| left["name"].as_str().cmp(&right["name"].as_str()));
+        serde_json::json!({
+            "table": table,
+            "sets": sets,
+            "chains": chains,
+            "rules": rules,
+        })
+    }
+
+    assert_eq!(
+        run_ip(&["-Version"]).status.success(),
+        true,
+        "iproute2 is required"
+    );
+    assert_eq!(
+        Command::new("id").arg("-u").output().unwrap().stdout,
+        b"0\n",
+        "this parity test must run as root"
+    );
+
+    let mut config = sample_config();
+    config.routing.rules[0].nat = NatMode::None;
+    config.routing.rules[1].nat = NatMode::Masquerade;
+    config.routing.rules[2].nat = NatMode::Snat;
+    config.routing.rules[2].nat_to = Some("203.0.113.9".parse().unwrap());
+    config.firewall.input.rules.push(ConfigFirewallRule {
+        interface: "wg-server".to_owned(),
+        source: Some(vec!["10.0.0.0/24".to_owned(), "10.0.1.0/24".to_owned()]),
+        destination: None,
+        protocol: Some(FirewallProtocol::Tcp),
+        ports: Some(vec![22, 443]),
+    });
+    config.firewall.output.rules.push(ConfigFirewallRule {
+        interface: "awg-primary".to_owned(),
+        source: None,
+        destination: Some(vec!["198.51.100.0/24".to_owned()]),
+        protocol: Some(FirewallProtocol::Udp),
+        ports: Some(vec![53]),
+    });
+
+    let full_plan = RoutingPlan::from_config(&config);
+    let scenarios = [
+        ("bootstrap", full_plan.fail_closed_bootstrap(), false),
+        ("name-based-multi-uplink-nat-firewall", full_plan.clone(), false),
+        ("numeric-ifindex-multi-uplink-nat-firewall", full_plan, true),
+    ];
+
+    let mut namespaces = Vec::new();
+    for (scenario_index, (scenario, mut plan, indexed)) in scenarios.into_iter().enumerate() {
+        let suffix = std::process::id();
+        let (legacy_ns, legacy_indices) =
+            setup_netns(format!("vpnrp-{suffix}-{scenario_index}-l"));
+        let (typed_ns, typed_indices) =
+            setup_netns(format!("vpnrp-{suffix}-{scenario_index}-t"));
+        if indexed {
+            assert_eq!(legacy_indices, typed_indices);
+            plan.bind_interface_indices(legacy_indices).unwrap();
+        }
+
+        apply_nft(&legacy_ns.0, &["-f", "-"], plan.nft_script().as_bytes());
+        let typed_json = plan
+            .firewall_ruleset()
+            .unwrap()
+            .to_json_value()
+            .unwrap();
+        apply_nft(
+            &typed_ns.0,
+            &["-j", "-f", "-"],
+            serde_json::to_string(&typed_json).unwrap().as_bytes(),
+        );
+
+        let legacy = normalized_ruleset(&legacy_ns.0);
+        let typed = normalized_ruleset(&typed_ns.0);
+        assert_eq!(
+            typed, legacy,
+            "typed nftables model diverges from legacy generator in scenario {scenario}"
+        );
+        namespaces.push(legacy_ns);
+        namespaces.push(typed_ns);
+    }
+    drop(namespaces);
+}
