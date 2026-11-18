@@ -56,36 +56,28 @@ pub(super) fn table_is_owned_text(output: &str, family: &str, name: &str) -> boo
     false
 }
 
-fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
-    let existing = Command::new("nft")
-        .args(["-j", "list", "table", &plan.nft_family, &plan.nft_table])
-        .output()
-        .map_err(|source| LinuxError::Spawn {
-            program: "nft".into(),
-            source,
-        })?;
-    if !existing.status.success() {
-        let stderr = String::from_utf8_lossy(&existing.stderr);
-        if stderr.contains("No such file or directory") || stderr.contains("does not exist") {
-            return Ok(false);
-        }
-        return Err(LinuxError::Command {
-            program: "nft -j list table".into(),
-            status: existing.status.to_string(),
-            stderr: stderr.trim().into(),
-        });
-    }
+fn get_current_ruleset_json(
+    plan: &RoutingPlan,
+) -> Result<String, nftables::helper::NftablesError> {
+    nftables::helper::get_current_ruleset_raw(
+        Some("nft"),
+        [
+            "list",
+            "table",
+            plan.nft_family.as_str(),
+            plan.nft_table.as_str(),
+        ],
+    )
+}
 
-    let json = String::from_utf8_lossy(&existing.stdout);
-    if table_is_owned(&json, &plan.nft_family, &plan.nft_table) {
-        return Ok(true);
-    }
-
-    // nftables 1.0.2 (Ubuntu 22.04) accepts table comments but does not expose
-    // them in JSON. Require the exact table header and a top-level comment
-    // before considering the table daemon-owned.
+fn get_nft_table_text(plan: &RoutingPlan) -> Result<String, LinuxError> {
     let textual = Command::new("nft")
-        .args(["list", "table", &plan.nft_family, &plan.nft_table])
+        .args([
+            "list",
+            "table",
+            plan.nft_family.as_str(),
+            plan.nft_table.as_str(),
+        ])
         .output()
         .map_err(|source| LinuxError::Spawn {
             program: "nft".into(),
@@ -98,11 +90,80 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
             stderr: String::from_utf8_lossy(&textual.stderr).trim().into(),
         });
     }
-    if table_is_owned_text(
-        &String::from_utf8_lossy(&textual.stdout),
-        &plan.nft_family,
-        &plan.nft_table,
-    ) {
+    Ok(String::from_utf8_lossy(&textual.stdout).into_owned())
+}
+
+fn map_nftables_error(error: nftables::helper::NftablesError) -> LinuxError {
+    use nftables::helper::NftablesError;
+
+    match error {
+        NftablesError::NftExecution { program, inner } => LinuxError::Spawn {
+            program: program.to_string_lossy().into_owned(),
+            source: inner,
+        },
+        NftablesError::NftFailed {
+            program,
+            hint,
+            stdout,
+            stderr,
+        } => {
+            let diagnostic = match (stderr.is_empty(), stdout.is_empty()) {
+                (false, false) => format!("{stderr}\nstdout: {stdout}"),
+                (false, true) => stderr,
+                (true, false) => format!("stdout: {stdout}"),
+                (true, true) => "nft command failed without diagnostic output".into(),
+            };
+            LinuxError::Command {
+                program: format!("{} {hint}", program.to_string_lossy()),
+                status: "failed".into(),
+                stderr: diagnostic,
+            }
+        }
+        NftablesError::NftOutputEncoding { program, inner } => LinuxError::Command {
+            program: program.to_string_lossy().into_owned(),
+            status: "invalid UTF-8 output".into(),
+            stderr: inner.to_string(),
+        },
+        NftablesError::NftInvalidJson(error) => LinuxError::Command {
+            program: "nft -j list table".into(),
+            status: "invalid JSON".into(),
+            stderr: error.to_string(),
+        },
+    }
+}
+
+fn is_missing_table_error(error: &nftables::helper::NftablesError) -> bool {
+    matches!(
+        error,
+        nftables::helper::NftablesError::NftFailed { stderr, .. }
+            if stderr.contains("No such file or directory") || stderr.contains("does not exist")
+    )
+}
+
+pub(super) fn inspect_nft_table_with<J, T>(
+    plan: &RoutingPlan,
+    get_json: &mut J,
+    get_text: &mut T,
+) -> Result<bool, LinuxError>
+where
+    J: FnMut(&RoutingPlan) -> Result<String, nftables::helper::NftablesError>,
+    T: FnMut(&RoutingPlan) -> Result<String, LinuxError>,
+{
+    let json = match get_json(plan) {
+        Ok(json) => json,
+        Err(error) if is_missing_table_error(&error) => return Ok(false),
+        Err(error) => return Err(map_nftables_error(error)),
+    };
+
+    if table_is_owned(&json, &plan.nft_family, &plan.nft_table) {
+        return Ok(true);
+    }
+
+    // nftables 1.0.2 (Ubuntu 22.04) accepts table comments but does not expose
+    // them in JSON. Require the exact table header and a top-level comment
+    // before considering the table daemon-owned.
+    let textual = get_text(plan)?;
+    if table_is_owned_text(&textual, &plan.nft_family, &plan.nft_table) {
         Ok(true)
     } else {
         Err(LinuxError::Conflict {
@@ -111,6 +172,10 @@ fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
                 .into(),
         })
     }
+}
+
+fn inspect_nft_table(plan: &RoutingPlan) -> Result<bool, LinuxError> {
+    inspect_nft_table_with(plan, &mut get_current_ruleset_json, &mut get_nft_table_text)
 }
 
 /// Runtime-facing abstraction for applying and removing firewall policies.
@@ -231,35 +296,4 @@ where
             plan.nft_table.clone(),
         ],
     )
-}
-
-
-#[cfg(test)]
-pub(super) fn map_nftables_error(
-    error: nftables::helper::NftablesError,
-) -> LinuxError {
-    let _ = error;
-    unimplemented!("RED: map nftables helper errors")
-}
-
-#[cfg(test)]
-pub(super) fn is_missing_table_error(
-    error: &nftables::helper::NftablesError,
-) -> bool {
-    let _ = error;
-    unimplemented!("RED: classify missing nftables table")
-}
-
-#[cfg(test)]
-pub(super) fn inspect_nft_table_with<J, T>(
-    plan: &RoutingPlan,
-    get_json: &mut J,
-    get_text: &mut T,
-) -> Result<bool, LinuxError>
-where
-    J: FnMut(&RoutingPlan) -> Result<String, nftables::helper::NftablesError>,
-    T: FnMut(&RoutingPlan) -> Result<String, LinuxError>,
-{
-    let _ = (plan, get_json, get_text);
-    unimplemented!("RED: inject nftables ownership readers")
 }

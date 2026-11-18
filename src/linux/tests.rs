@@ -1109,9 +1109,13 @@ fn nftables_helper_errors_preserve_spawn_and_command_details() {
 
 #[test]
 fn nftables_not_found_detection_is_narrow() {
-    assert!(is_missing_table_error(&nft_failed("No such file or directory")));
+    assert!(is_missing_table_error(
+        &nft_failed("No such file or directory")
+    ));
     assert!(is_missing_table_error(&nft_failed("table does not exist")));
-    assert!(!is_missing_table_error(&nft_failed("Operation not permitted")));
+    assert!(!is_missing_table_error(
+        &nft_failed("Operation not permitted")
+    ));
     assert!(!is_missing_table_error(
         &nftables::helper::NftablesError::NftExecution {
             program: "nft".into(),
@@ -1124,19 +1128,16 @@ fn nftables_not_found_detection_is_narrow() {
 fn inspect_nft_table_accepts_only_exact_json_ownership() {
     let plan = cleanup_test_plan();
     let owned = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
-    let result = inspect_nft_table_with(
-        &plan,
-        &mut |_plan| Ok(owned.into()),
-        &mut |_plan| panic!("text fallback must not run for an owned JSON table"),
-    );
+    let result = inspect_nft_table_with(&plan, &mut |_plan| Ok(owned.into()), &mut |_plan| {
+        panic!("text fallback must not run for an owned JSON table")
+    });
     assert!(result.unwrap());
 }
 
 #[test]
 fn inspect_nft_table_uses_text_fallback_for_missing_json_comment() {
     let plan = cleanup_test_plan();
-    let json_without_comment =
-        r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}}]}"#;
+    let json_without_comment = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}}]}"#;
     let owned_text = r#"table inet vpn_relay {
     comment "managed by vpn-relay"
 }
