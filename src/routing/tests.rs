@@ -779,14 +779,24 @@ fn firewall_model_preserves_managed_host_policy_order() {
     assert_eq!(input.rules[2].actions, [FirewallAction::Accept]);
     assert_eq!(input.rules[3].actions, [FirewallAction::Drop]);
 
-    assert_eq!(output.rules.len(), 4);
-    assert_eq!(output.rules[0].actions, [FirewallAction::Drop]);
+    // OUTPUT also carries the IPv6 egress guard, before the managed-host
+    // conntrack policy. Keep that rule distinct from the invalid-state guard.
+    assert_eq!(output.rules.len(), 5);
+    assert_eq!(
+        output.rules[0].actions,
+        [FirewallAction::Counter, FirewallAction::Drop]
+    );
+    assert!(output.rules[0].expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::InSet { set, .. } if set == "ipv6_drop_interfaces"
+    )));
+    assert_eq!(output.rules[1].actions, [FirewallAction::Drop]);
     assert!(matches!(
-        output.rules[1].actions.as_slice(),
+        output.rules[2].actions.as_slice(),
         [FirewallAction::Mangle { .. }, FirewallAction::Accept]
     ));
-    assert_eq!(output.rules[2].actions, [FirewallAction::Accept]);
-    assert_eq!(output.rules[3].actions, [FirewallAction::Drop]);
+    assert_eq!(output.rules[3].actions, [FirewallAction::Accept]);
+    assert_eq!(output.rules[4].actions, [FirewallAction::Drop]);
 
     assert!(input.rules[1].expressions.iter().any(|expression| matches!(
         expression,
@@ -797,18 +807,15 @@ fn firewall_model_preserves_managed_host_policy_order() {
         } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::IifName))
             && interface == "wg-server"
     )));
-    assert!(output.rules[1]
-        .expressions
-        .iter()
-        .any(|expression| matches!(
-            expression,
-            FirewallExpression::Compare {
-                left,
-                operator: FirewallCompareOperator::Equal,
-                right: FirewallValue::String(interface),
-            } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::OifName))
-                && interface == "awg-secondary"
-        )));
+    assert!(output.rules[2].expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Compare {
+            left,
+            operator: FirewallCompareOperator::Equal,
+            right: FirewallValue::String(interface),
+        } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::OifName))
+            && interface == "awg-secondary"
+    )));
 }
 
 #[test]
@@ -895,17 +902,12 @@ fn firewall_model_preserves_numeric_identity_guards() {
     .unwrap();
 
     let model = plan.firewall_ruleset().unwrap();
-    for (chain_name, key_name, key_index, expected_guards) in [
-        (
-            "prerouting",
-            FirewallMetaKey::IifName,
-            FirewallMetaKey::Iif,
-            6,
-        ),
-        ("input", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
-        ("forward", FirewallMetaKey::IifName, FirewallMetaKey::Iif, 6),
-        ("forward", FirewallMetaKey::OifName, FirewallMetaKey::Oif, 6),
-        ("output", FirewallMetaKey::OifName, FirewallMetaKey::Oif, 6),
+    for (chain_name, name_key, index_key) in [
+        ("prerouting", FirewallMetaKey::IifName, FirewallMetaKey::Iif),
+        ("input", FirewallMetaKey::IifName, FirewallMetaKey::Iif),
+        ("forward", FirewallMetaKey::IifName, FirewallMetaKey::Iif),
+        ("forward", FirewallMetaKey::OifName, FirewallMetaKey::Oif),
+        ("output", FirewallMetaKey::OifName, FirewallMetaKey::Oif),
     ] {
         let chain = model
             .chains
@@ -922,21 +924,98 @@ fn firewall_model_preserves_numeric_identity_guards() {
                         FirewallExpression::Compare {
                             left,
                             operator: FirewallCompareOperator::NotEqual,
-                            right: FirewallValue::Number(_),
-                        } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_index)
+                            ..
+                        } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == index_key || *key == name_key)
                     ))
             })
             .collect();
-        assert_eq!(guards.len(), expected_guards);
-        assert!(guards
+
+        let name_to_wrong_index: Vec<_> = guards
             .iter()
-            .all(|rule| rule.expressions.iter().any(|expression| matches!(
-                expression,
-                FirewallExpression::Compare {
-                    left,
-                    operator: FirewallCompareOperator::NotEqual,
-                    right: FirewallValue::Number(_),
-                } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == key_name)
-            ))));
+            .filter(|rule| {
+                rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::Equal,
+                        right: FirewallValue::String(_),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == name_key)
+                )) && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::NotEqual,
+                        right: FirewallValue::Number(_),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == index_key)
+                ))
+            })
+            .collect();
+        let wrong_name_to_index: Vec<_> = guards
+            .iter()
+            .filter(|rule| {
+                rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::Equal,
+                        right: FirewallValue::Number(_),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == index_key)
+                )) && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::NotEqual,
+                        right: FirewallValue::String(_),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == name_key)
+                ))
+            })
+            .collect();
+
+        assert_eq!(name_to_wrong_index.len(), 3, "{chain_name} name-to-index guards");
+        assert_eq!(wrong_name_to_index.len(), 3, "{chain_name} index-to-name guards");
+        for (name, index) in [
+            ("wg-server", 17),
+            ("awg-primary", 18),
+            ("awg-secondary", 19),
+        ] {
+            assert!(name_to_wrong_index.iter().any(|rule| {
+                rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::Equal,
+                        right: FirewallValue::String(value),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == name_key)
+                        && value == name
+                )) && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::NotEqual,
+                        right: FirewallValue::Number(value),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == index_key)
+                        && *value == index
+                ))
+            }), "{chain_name} missing name/index mismatch guard for {name}");
+            assert!(wrong_name_to_index.iter().any(|rule| {
+                rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::Equal,
+                        right: FirewallValue::Number(value),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == index_key)
+                        && *value == index
+                )) && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::NotEqual,
+                        right: FirewallValue::String(value),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(key) if *key == name_key)
+                        && value == name
+                ))
+            }), "{chain_name} missing index/name mismatch guard for {name}");
+        }
     }
 }
