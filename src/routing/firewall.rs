@@ -98,6 +98,10 @@ pub(crate) enum FirewallValue {
     Number(u32),
     State(Vec<String>),
     Set(Vec<FirewallValue>),
+    Prefix {
+        address: Ipv4Addr,
+        prefix_len: u8,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FirewallExpression {
@@ -186,6 +190,17 @@ fn named(name: &str) -> FirewallValue {
 fn number(value: u32) -> FirewallValue {
     FirewallValue::Number(value)
 }
+fn prefix_value(value: &str) -> FirewallValue {
+    let (address, prefix_len) = value
+        .split_once('/')
+        .expect("validated firewall IPv4 prefix");
+    FirewallValue::Prefix {
+        address: address.parse().expect("validated firewall IPv4 address"),
+        prefix_len: prefix_len
+            .parse()
+            .expect("validated firewall IPv4 prefix length"),
+    }
+}
 fn managed(key: FirewallMetaKey) -> FirewallExpression {
     FirewallExpression::InSet {
         expression: Box::new(meta(key)),
@@ -243,10 +258,7 @@ fn host_allow(
                     field: if input { "saddr" } else { "daddr" }.into(),
                 },
                 FirewallValue::Set(
-                    prefixes
-                        .iter()
-                        .map(|s| FirewallValue::String(s.clone()))
-                        .collect(),
+                    prefixes.iter().map(|prefix| prefix_value(prefix)).collect(),
                 ),
             ));
         }
@@ -790,8 +802,12 @@ impl FirewallRuleset {
                 FirewallValue::Number(value) => json!(value),
                 FirewallValue::State(values) => json!(values),
                 FirewallValue::Set(values) => {
-                    json!({ "set": values.iter().map(|item| value(item)).collect::<Vec<_>>() })
+                    json!({ "set": values.iter().map(value).collect::<Vec<_>>() })
                 }
+                FirewallValue::Prefix {
+                    address,
+                    prefix_len,
+                } => json!({ "prefix": { "addr": address.to_string(), "len": prefix_len } }),
             }
         }
 

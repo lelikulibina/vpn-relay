@@ -1108,7 +1108,10 @@ fn firewall_model_serializes_typed_nftables_schema() {
             && expression["match"]["left"]["payload"]["protocol"] == "ip"
             && expression["match"]["left"]["payload"]["field"] == "saddr"
             && expression["match"]["right"]["set"]
-                == serde_json::json!(["10.0.0.0/24", "10.1.0.0/24"])
+                == serde_json::json!([
+                    {"prefix": {"addr": "10.0.0.0", "len": 24}},
+                    {"prefix": {"addr": "10.1.0.0", "len": 24}}
+                ])
     }));
     assert!(expressions.iter().any(|expression| {
         expression["match"]["op"] == "in"
@@ -1119,8 +1122,7 @@ fn firewall_model_serializes_typed_nftables_schema() {
     assert!(expressions.iter().any(|expression| {
         expression["match"]["op"] == "in"
             && expression["match"]["left"]["ct"]["key"] == "state"
-            && expression["match"]["right"]
-                == serde_json::json!(["new", "established", "related"])
+            && expression["match"]["right"] == serde_json::json!(["new", "established", "related"])
     }));
 }
 
