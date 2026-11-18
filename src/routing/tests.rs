@@ -1149,7 +1149,6 @@ fn firewall_model_preserves_raw_compatibility_fields() {
     assert_eq!(managed_set["elem"], serde_json::json!([18, 19, 17]));
 }
 
-
 #[test]
 #[ignore = "requires root, iproute2 and nftables; executed by the network-core CI job"]
 fn typed_firewall_matches_legacy_kernel_rulesets() {
@@ -1255,9 +1254,14 @@ fn typed_firewall_matches_legacy_kernel_rulesets() {
         let output = child.wait_with_output().expect("wait for nft");
         assert!(
             output.status.success(),
-            "nft {:?} failed in {namespace}: {}",
+            "nft {:?} failed in {namespace}: {}{}",
             args,
-            String::from_utf8_lossy(&output.stderr)
+            String::from_utf8_lossy(&output.stderr),
+            if args.contains(&"-j") {
+                format!("\nTyped JSON input:\n{}", String::from_utf8_lossy(input))
+            } else {
+                String::new()
+            }
         );
     }
 

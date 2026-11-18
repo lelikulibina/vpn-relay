@@ -2,6 +2,9 @@
 use crate::InterfaceStats;
 
 #[cfg(target_os = "linux")]
+const RECENT_HANDSHAKE_SECS: u64 = 180;
+
+#[cfg(target_os = "linux")]
 pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
     if interfaces.is_empty() {
         println!("Нет настроенных туннельных интерфейсов.");
@@ -9,21 +12,39 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
     }
 
     let mut total_peers = 0usize;
+    let mut total_recent = 0usize;
     let mut total_rx = 0u64;
     let mut total_tx = 0u64;
 
+    println!("Статистика VPN-relay");
+    println!("Интерфейсов: {}", interfaces.len());
+
     for interface in interfaces {
-        println!("\nИнтерфейс: {}", interface.name);
+        let peer_count = interface.peers.len();
+        let recent = interface.peers.iter()
+            .filter(|peer| is_recent_handshake(peer.handshake_age_secs))
+            .count();
+        let rx = interface.peers.iter()
+            .fold(0u64, |sum, peer| sum.saturating_add(peer.rx_bytes));
+        let tx = interface.peers.iter()
+            .fold(0u64, |sum, peer| sum.saturating_add(peer.tx_bytes));
+
         println!(
-            "{:<64}  {:<39}  {:<21}  {:>12}  {:>12}  {:>12}",
-            "Публичный ключ", "IP клиента", "Endpoint", "Получено", "Отправлено", "Handshake"
+            "\nИнтерфейс: {}  |  Пиров: {}  |  Handshake ≤ 3 мин: {}  |  RX: {}  |  TX: {}",
+            interface.name, peer_count, recent, format_bytes(rx), format_bytes(tx)
         );
-        println!("{}", "-".repeat(180));
 
         if interface.peers.is_empty() {
-            println!("(нет пиров)");
+            println!("  Пиры не настроены или отсутствуют.");
             continue;
         }
+
+        println!(
+            "  {:<22}  {:<25}  {:<21}  {:>10}  {:>10}  {:>14}  {:<9}",
+            "Публичный ключ (Base64)", "IP клиента", "Endpoint",
+            "RX", "TX", "Handshake", "Состояние"
+        );
+        println!("  {}", "-".repeat(125));
 
         for peer in &interface.peers {
             let ips = if peer.client_ips.is_empty() {
@@ -31,28 +52,70 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
             } else {
                 peer.client_ips.join(", ")
             };
-            let endpoint = peer
-                .endpoint
+            let endpoint = peer.endpoint
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "-".to_owned());
             println!(
-                "{:<64}  {:<39}  {:<21}  {:>12}  {:>12}  {:>12}",
-                peer.public_key,
-                ips,
+                "  {:<22}  {:<25}  {:<21}  {:>10}  {:>10}  {:>14}  {:<9}",
+                format_peer_key(&peer.public_key),
+                truncate(&ips, 25),
                 endpoint,
                 format_bytes(peer.rx_bytes),
                 format_bytes(peer.tx_bytes),
-                format_handshake(peer.handshake_age_secs)
+                format_handshake(peer.handshake_age_secs),
+                handshake_status(peer.handshake_age_secs)
             );
-            total_peers += 1;
-            total_rx = total_rx.saturating_add(peer.rx_bytes);
-            total_tx = total_tx.saturating_add(peer.tx_bytes);
         }
+
+        total_peers += peer_count;
+        total_recent += recent;
+        total_rx = total_rx.saturating_add(rx);
+        total_tx = total_tx.saturating_add(tx);
     }
 
-    println!("\nВсего пиров: {total_peers}");
-    println!("Получено от клиентов: {}", format_bytes(total_rx));
-    println!("Отправлено клиентам: {}", format_bytes(total_tx));
+    println!("\nИтого");
+    println!("  Пиров: {total_peers}");
+    println!("  Handshake за последние 3 минуты: {total_recent}");
+    println!("  Получено от пиров (RX): {}", format_bytes(total_rx));
+    println!("  Отправлено пирам (TX): {}", format_bytes(total_tx));
+}
+
+#[cfg(target_os = "linux")]
+fn format_peer_key(key: &str) -> String {
+    const PREFIX: usize = 10;
+    const SUFFIX: usize = 8;
+    let chars: Vec<char> = key.chars().collect();
+    if chars.len() <= PREFIX + SUFFIX + 1 {
+        return key.to_owned();
+    }
+    format!(
+        "{}…{}",
+        chars[..PREFIX].iter().collect::<String>(),
+        chars[chars.len() - SUFFIX..].iter().collect::<String>()
+    )
+}
+
+#[cfg(target_os = "linux")]
+fn truncate(value: &str, max_chars: usize) -> String {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() <= max_chars {
+        return value.to_owned();
+    }
+    format!("{}…", chars[..max_chars.saturating_sub(1)].iter().collect::<String>())
+}
+
+#[cfg(target_os = "linux")]
+fn is_recent_handshake(age: Option<u64>) -> bool {
+    age.is_some_and(|seconds| seconds <= RECENT_HANDSHAKE_SECS)
+}
+
+#[cfg(target_os = "linux")]
+fn handshake_status(age: Option<u64>) -> &'static str {
+    match age {
+        None => "нет",
+        Some(seconds) if seconds <= RECENT_HANDSHAKE_SECS => "свежий",
+        Some(_) => "давний",
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -102,5 +165,22 @@ mod tests {
         assert_eq!(format_handshake(Some(120)), "2м назад");
         assert_eq!(format_handshake(Some(7_200)), "2ч назад");
         assert_eq!(format_handshake(Some(172_800)), "2д назад");
+    }
+
+    #[test]
+    fn peer_key_is_shortened_in_the_middle_without_changing_base64_edges() {
+        let key = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr==";
+        assert_eq!(format_peer_key(key), "ABCDEFGHIJ…klmnopqr");
+        assert_eq!(format_peer_key("short-key"), "short-key");
+    }
+
+    #[test]
+    fn handshake_freshness_is_explicit_and_bounded_to_three_minutes() {
+        assert!(is_recent_handshake(Some(180)));
+        assert!(!is_recent_handshake(Some(181)));
+        assert!(!is_recent_handshake(None));
+        assert_eq!(handshake_status(Some(10)), "свежий");
+        assert_eq!(handshake_status(Some(181)), "давний");
+        assert_eq!(handshake_status(None), "нет");
     }
 }

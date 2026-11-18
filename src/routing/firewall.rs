@@ -97,6 +97,7 @@ pub(crate) enum FirewallValue {
     String(String),
     Number(u32),
     State(Vec<String>),
+    Set(Vec<FirewallValue>),
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FirewallExpression {
@@ -236,12 +237,14 @@ fn host_allow(
     if let Some(prefixes) = prefixes {
         expressions.push(eq(meta(FirewallMetaKey::NfProto), named("ipv4")));
         if !prefixes.is_empty() {
-            expressions.push(FirewallExpression::Payload {
-                protocol: "ip".into(),
-                field: if input { "saddr" } else { "daddr" }.into(),
-            });
-            expressions.push(FirewallExpression::Set(
-                prefixes.iter().map(|s| named(s)).collect(),
+            expressions.push(inside(
+                FirewallExpression::Payload {
+                    protocol: "ip".into(),
+                    field: if input { "saddr" } else { "daddr" }.into(),
+                },
+                FirewallValue::Set(
+                    prefixes.iter().map(|s| FirewallValue::String(s.clone())).collect(),
+                ),
             ));
         }
     }
@@ -256,12 +259,14 @@ fn host_allow(
         ));
     }
     if let Some(ports) = &rule.ports {
-        expressions.push(FirewallExpression::Payload {
-            protocol: "th".into(),
-            field: "dport".into(),
-        });
-        expressions.push(FirewallExpression::Set(
-            ports.iter().map(|p| number(*p as u32)).collect(),
+        expressions.push(inside(
+            FirewallExpression::Payload {
+                protocol: "th".into(),
+                field: "dport".into(),
+            },
+            FirewallValue::Set(
+                ports.iter().map(|p| FirewallValue::Number(*p as u32)).collect(),
+            ),
         ));
     }
     expressions.extend([
@@ -777,7 +782,10 @@ impl FirewallRuleset {
             match value {
                 FirewallValue::String(value) => json!(value),
                 FirewallValue::Number(value) => json!(value),
-                FirewallValue::State(values) => json!(values),
+                FirewallValue::State(values) => json!({ "set": values }),
+                FirewallValue::Set(values) => {
+                    json!({ "set": values.iter().map(value).collect::<Vec<_>>() })
+                }
             }
         }
 

@@ -8,6 +8,8 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 #[cfg(test)]
 use crate::control::unix::ControlSocket;
 use crate::control::unix::{UnixClient, UnixTransport};
@@ -385,7 +387,7 @@ impl Runtime {
                         .peers
                         .into_iter()
                         .map(|peer| PeerStats {
-                            public_key: hex_key(&peer.public_key),
+                            public_key: base64_key(&peer.public_key),
                             client_ips: peer.allowed_ips,
                             endpoint: peer.endpoint,
                             tx_bytes: peer.tx_bytes,
@@ -557,8 +559,8 @@ fn install_signal_handlers() -> Result<(), RuntimeError> {
     Ok(())
 }
 
-fn hex_key(key: &[u8; 32]) -> String {
-    key.iter().map(|byte| format!("{byte:02x}")).collect()
+fn base64_key(key: &[u8; 32]) -> String {
+    BASE64_STANDARD.encode(key)
 }
 
 #[cfg(test)]
