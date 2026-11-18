@@ -1040,7 +1040,6 @@ fn firewall_model_preserves_numeric_identity_guards() {
     }
 }
 
-
 #[test]
 fn firewall_model_serializes_typed_nftables_schema() {
     let plan = RoutingPlan::from_config(&sample_config());
@@ -1074,8 +1073,12 @@ fn firewall_model_serializes_typed_nftables_schema() {
     assert_eq!(set_positions.len(), 2);
     assert_eq!(chain_positions.len(), 5);
     assert!(!rule_positions.is_empty());
-    assert!(set_positions.iter().all(|position| *position < chain_positions[0]));
-    assert!(chain_positions.iter().all(|position| *position < rule_positions[0]));
+    assert!(set_positions
+        .iter()
+        .all(|position| *position < chain_positions[0]));
+    assert!(chain_positions
+        .iter()
+        .all(|position| *position < rule_positions[0]));
 
     let input_rule = objects
         .iter()
