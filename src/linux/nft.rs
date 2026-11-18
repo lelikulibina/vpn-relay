@@ -56,9 +56,7 @@ pub(super) fn table_is_owned_text(output: &str, family: &str, name: &str) -> boo
     false
 }
 
-fn get_current_ruleset_json(
-    plan: &RoutingPlan,
-) -> Result<String, nftables::helper::NftablesError> {
+fn get_current_ruleset_json(plan: &RoutingPlan) -> Result<String, nftables::helper::NftablesError> {
     nftables::helper::get_current_ruleset_raw(
         Some("nft"),
         [
@@ -93,7 +91,7 @@ fn get_nft_table_text(plan: &RoutingPlan) -> Result<String, LinuxError> {
     Ok(String::from_utf8_lossy(&textual.stdout).into_owned())
 }
 
-fn map_nftables_error(error: nftables::helper::NftablesError) -> LinuxError {
+pub(super) fn map_nftables_error(error: nftables::helper::NftablesError) -> LinuxError {
     use nftables::helper::NftablesError;
 
     match error {
@@ -132,7 +130,7 @@ fn map_nftables_error(error: nftables::helper::NftablesError) -> LinuxError {
     }
 }
 
-fn is_missing_table_error(error: &nftables::helper::NftablesError) -> bool {
+pub(super) fn is_missing_table_error(error: &nftables::helper::NftablesError) -> bool {
     matches!(
         error,
         nftables::helper::NftablesError::NftFailed { stderr, .. }

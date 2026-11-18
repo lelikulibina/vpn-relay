@@ -1054,7 +1054,6 @@ fn interface_identity_propagates_missing_link_lookup_errors() {
     ));
 }
 
-
 fn nft_failed(stderr: &str) -> nftables::helper::NftablesError {
     nftables::helper::NftablesError::NftFailed {
         program: "nft".into(),
