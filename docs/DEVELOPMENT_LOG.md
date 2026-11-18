@@ -4,7 +4,8 @@
 - **Безопасность и совместимость:** ownership inspection выполняется до mutation; exact family/name/table-level comment обязателен. Для nftables 1.0.2 сохранён top-level-only text fallback. `table.comment` и `iface_index` остаются в узком JSON compatibility serializer. Ошибки model/helper fail closed и отображаются в существующий `LinuxError`.
 - **Parity и тесты:** production kernel parity/lifecycle сценарии прошли; сохранены semantic assertions typed model, JSON batch ordering, helper failure injection, foreign-table protection, atomic replacement, ownership fallback и namespace tests. Legacy string generator, `nft_text.rs`, string-only tests и старые shim branches удалены.
 - **Проверка:** commit `7df7139aedffc05e327f23a4732f9799ce5c71d6`; GitHub Actions run `44411771480` — **9/9 jobs success**, включая quality, Ubuntu 22.04/24.04 kernel compatibility, network core, WireGuard, AmneziaWG 3/3.1, multi-uplink и rootful Podman.
-- **Граница:** implementation R3.5 закрыт. Этот документационный commit синхронизирует roadmap, архитектурную карту, nftables reference и execution plan; после него требуется отдельный полный CI gate.
+- **Документационный gate:** commit `cd23975ccf4801f4a6a931d58af55cbd026ff875`; CI run `44412838299` — **9/9 jobs success**.
+- **Итог:** R3.0–R3.6 закрыты после прохождения implementation и documentation CI gates (оба 9/9).
 
 # Журнал разработки vpn-relay
 

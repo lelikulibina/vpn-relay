@@ -19,7 +19,7 @@
 ## Task 1 — JSON batch builder + injectable helper boundary
 
 - [x] Прочитать helper API v0.6.3 и проверить фактическую командную форму `apply_ruleset_raw`.
-- [ ] Добавить JSON batch builder: optional delete object, затем typed model objects.
+- [x] Добавить JSON batch builder: optional delete object, затем typed model objects.
 - [ ] Проверить deterministic object order и exact compatibility fields.
 - [ ] Добавить injectable apply function, которая получает один payload и вызывает crate helper ровно один раз.
 - [ ] Unit tests: missing table, owned table, helper/model failure, delete-first order, table comment, iface_index.

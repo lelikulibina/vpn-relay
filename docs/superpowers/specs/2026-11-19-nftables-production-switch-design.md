@@ -60,7 +60,7 @@
 
 ### Задача 1 — JSON batch builder и тестируемый crate apply seam
 
-- [ ] Добавить функцию построения JSON batch из `FirewallRuleset`, с optional delete object первым.
+- [x] Добавить функцию построения JSON batch из `FirewallRuleset`, с optional delete object первым.
 - [ ] Добавить unit tests для stable object order, owned/missing table payload, comment и iface_index compatibility fields.
 - [ ] Добавить injectable apply closure вокруг `apply_ruleset_raw`; тестировать один вызов на весь payload.
 - [ ] Проверить model errors и helper errors: ни один из них не должен приводить к запуску/повторному применению.
