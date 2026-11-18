@@ -5,6 +5,7 @@ on:
     branches: ["refactor/**"]
     paths:
       - "Cargo.toml"
+      - ".github/workflows/refresh-lockfile.yaml"
 
 permissions:
   contents: write
@@ -20,7 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${GITHUB_REF_NAME}
+          ref: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
       - uses: dtolnay/rust-toolchain@stable
       - name: Generate and commit lockfile

@@ -733,10 +733,12 @@ impl FirewallRuleset {
     /// The upstream schema cannot represent table comments or iface_index sets.
     /// Those values are retained by to_json_value; numeric sets are rejected
     /// rather than silently misrepresented as interface-name sets.
-    pub(crate) fn to_nftables(
-        &self,
-    ) -> Result<nftables::schema::Nftables<'static>, String> {
-        if self.sets.iter().any(|set| set.data_type == FirewallSetType::IfaceIndex) {
+    pub(crate) fn to_nftables(&self) -> Result<nftables::schema::Nftables<'static>, String> {
+        if self
+            .sets
+            .iter()
+            .any(|set| set.data_type == FirewallSetType::IfaceIndex)
+        {
             return Err("nftables 0.6.3 schema does not support iface_index".into());
         }
         let mut value = self.to_json_value().map_err(|error| error.to_string())?;
@@ -786,7 +788,11 @@ impl FirewallRuleset {
                 FirewallExpression::Payload { protocol, field } => {
                     json!({"payload": {"protocol": protocol, "field": field}})
                 }
-                FirewallExpression::Compare { left, operator, right } => json!({
+                FirewallExpression::Compare {
+                    left,
+                    operator,
+                    right,
+                } => json!({
                     "match": {
                         "op": match operator {
                             FirewallCompareOperator::Equal => "==",
@@ -796,7 +802,10 @@ impl FirewallRuleset {
                         "right": value(right),
                     }
                 }),
-                FirewallExpression::BitwiseAnd { expression: inner, mask } => {
+                FirewallExpression::BitwiseAnd {
+                    expression: inner,
+                    mask,
+                } => {
                     json!({"&": [expression(inner), mask]})
                 }
                 FirewallExpression::BitwiseOr { left, right } => {
@@ -805,7 +814,10 @@ impl FirewallRuleset {
                 FirewallExpression::Set(values) => {
                     json!({"set": values.iter().map(value).collect::<Vec<_>>()})
                 }
-                FirewallExpression::InSet { expression: inner, set } => json!({
+                FirewallExpression::InSet {
+                    expression: inner,
+                    set,
+                } => json!({
                     "match": {
                         "op": "in",
                         "left": expression(inner),
@@ -846,10 +858,14 @@ impl FirewallRuleset {
                 FirewallSetType::IfName => "ifname",
                 FirewallSetType::IfaceIndex => "iface_index",
             };
-            let elements = set.elements.iter().map(|selector| match selector {
-                InterfaceSelector::Name(name) => json!(name),
-                InterfaceSelector::Index(index) => json!(index),
-            }).collect::<Vec<_>>();
+            let elements = set
+                .elements
+                .iter()
+                .map(|selector| match selector {
+                    InterfaceSelector::Name(name) => json!(name),
+                    InterfaceSelector::Index(index) => json!(index),
+                })
+                .collect::<Vec<_>>();
             objects.push(json!({"add": {"set": {
                 "family": self.family,
                 "table": self.table,
