@@ -13,16 +13,20 @@ pub(super) fn build_nftables_batch(
     plan: &RoutingPlan,
     replace_owned: bool,
 ) -> Result<Value, LinuxError> {
-    let ruleset = plan.firewall_ruleset().map_err(|error| LinuxError::Command {
-        program: "nft JSON batch".into(),
-        status: "invalid firewall model".into(),
-        stderr: error.to_string(),
-    })?;
-    let mut batch = ruleset.to_json_value().map_err(|error| LinuxError::Command {
-        program: "nft JSON batch".into(),
-        status: "serialization failed".into(),
-        stderr: error.to_string(),
-    })?;
+    let ruleset = plan
+        .firewall_ruleset()
+        .map_err(|error| LinuxError::Command {
+            program: "nft JSON batch".into(),
+            status: "invalid firewall model".into(),
+            stderr: error.to_string(),
+        })?;
+    let mut batch = ruleset
+        .to_json_value()
+        .map_err(|error| LinuxError::Command {
+            program: "nft JSON batch".into(),
+            status: "serialization failed".into(),
+            stderr: error.to_string(),
+        })?;
 
     let objects = batch
         .get_mut("nftables")
