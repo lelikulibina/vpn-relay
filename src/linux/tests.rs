@@ -1108,13 +1108,11 @@ fn nftables_helper_errors_preserve_spawn_and_command_details() {
 
 #[test]
 fn nftables_not_found_detection_is_narrow() {
-    assert!(is_missing_table_error(
-        &nft_failed("No such file or directory")
-    ));
+    let missing_table = nft_failed("No such file or directory");
+    assert!(is_missing_table_error(&missing_table));
     assert!(is_missing_table_error(&nft_failed("table does not exist")));
-    assert!(!is_missing_table_error(
-        &nft_failed("Operation not permitted")
-    ));
+    let permission_denied = nft_failed("Operation not permitted");
+    assert!(!is_missing_table_error(&permission_denied));
     assert!(!is_missing_table_error(
         &nftables::helper::NftablesError::NftExecution {
             program: "nft".into(),
