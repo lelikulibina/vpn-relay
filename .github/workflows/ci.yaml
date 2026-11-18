@@ -73,8 +73,6 @@ jobs:
         run: cargo build --locked
       - name: Validate example configuration
         run: cargo run --locked -- --config vpn-relay.example.toml --check
-      - name: Typed nftables versus legacy kernel ruleset parity
-        run: sudo -E env "PATH=$PATH" cargo test --locked --lib typed_firewall_matches_legacy_kernel_rulesets -- --ignored --nocapture
       - name: Network namespace routing/firewall/NAT and lifecycle tests
         run: sudo bash scripts/vpn-relay-netns-test.sh
 

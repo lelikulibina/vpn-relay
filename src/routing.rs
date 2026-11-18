@@ -80,7 +80,6 @@ pub struct RoutingPlan {
 
 mod firewall;
 mod marks;
-mod nft_text;
 pub(crate) use firewall::{
     FirewallAction, FirewallChain, FirewallCompareOperator, FirewallCtKey, FirewallExpression,
     FirewallMangleKey, FirewallMetaKey, FirewallModelError, FirewallRule, FirewallRuleset,
