@@ -45,11 +45,11 @@
 - Add `map_nftables_error(error: NftablesError) -> LinuxError`.
 - Add a predicate for the two existing not-found stderr forms; do not classify other failures as missing tables.
 
-- [ ] **Step 1: Write failing tests** named `nftables_helper_errors_preserve_spawn_and_command_details` and `nftables_not_found_detection_is_narrow`. Assert spawn maps to `LinuxError::Spawn`, command errors preserve stderr, and only `No such file or directory` / `does not exist` are treated as missing.
-- [ ] **Step 2: Run the targeted Linux unit tests** through the GitHub Actions quality job and verify they fail for missing mapping/predicate.
-- [ ] **Step 3: Implement the raw helper wrapper and error mapping** in `src/linux/nft.rs`. Map UTF-8/JSON helper errors to a diagnostic `LinuxError::Command`; preserve program and stderr details where available.
-- [ ] **Step 4: Run targeted tests and all quality checks**; confirm all mapping tests pass.
-- [ ] **Step 5: Commit** the helper integration.
+- [x] **Step 1: Add characterization tests** named `nftables_helper_errors_preserve_spawn_and_command_details` and `nftables_not_found_detection_is_narrow`. Assert spawn maps to `LinuxError::Spawn`, command errors preserve stderr, and only `No such file or directory` / `does not exist` are treated as missing.
+- [x] **Step 2: Run the targeted Linux unit tests** through the GitHub Actions quality job and verify they fail for missing mapping/predicate.
+- [x] **Step 3: Implement the raw helper wrapper and error mapping** in `src/linux/nft.rs`. Map UTF-8/JSON helper errors to a diagnostic `LinuxError::Command`; preserve program and stderr details where available.
+- [x] **Step 4: Run targeted tests and all quality checks**; confirm all mapping tests pass.
+- [x] **Step 5: Commit** the helper integration.
 
 ### Task 2: Fail-closed ownership inspection and compatibility fallback
 
@@ -62,11 +62,11 @@
 - Add an injectable internal `inspect_nft_table_with` accepting JSON and text readers, so ownership decisions are tested without executing nft.
 - JSON reader returns `Result<String, NftablesError>`; text reader returns `Result<String, LinuxError>`.
 
-- [ ] **Step 1: Write failing tests** named `inspect_nft_table_accepts_only_exact_json_ownership`, `inspect_nft_table_uses_text_fallback_for_missing_json_comment`, `inspect_nft_table_rejects_nested_or_foreign_markers`, and `inspect_nft_table_returns_false_only_for_missing_table`.
-- [ ] **Step 2: Run targeted tests** and verify the new inspection cases fail before implementation.
-- [ ] **Step 3: Refactor `inspect_nft_table`** to use the crate raw helper, preserve `table_is_owned` and `table_is_owned_text`, and invoke text fallback when JSON does not prove ownership. Propagate all non-not-found JSON and text errors.
-- [ ] **Step 4: Run targeted tests** and verify exact JSON/text ownership behavior, including foreign table rejection.
-- [ ] **Step 5: Commit** the fail-closed inspection refactor.
+- [x] **Step 1: Add characterization tests** named `inspect_nft_table_accepts_only_exact_json_ownership`, `inspect_nft_table_uses_text_fallback_for_missing_json_comment`, `inspect_nft_table_rejects_nested_or_foreign_markers`, and `inspect_nft_table_returns_false_only_for_missing_table`.
+- [x] **Step 2: Run targeted tests** and verify the new inspection cases fail before implementation.
+- [x] **Step 3: Refactor `inspect_nft_table`** to use the crate raw helper, preserve `table_is_owned` and `table_is_owned_text`, and invoke text fallback when JSON does not prove ownership. Propagate all non-not-found JSON and text errors.
+- [x] **Step 4: Run targeted tests** and verify exact JSON/text ownership behavior, including foreign table rejection.
+- [x] **Step 5: Commit** the fail-closed inspection refactor.
 
 ### Task 3: Kernel ownership regression coverage and documentation
 
@@ -74,11 +74,18 @@
 - Modify: `scripts/vpn-relay-netns-test.sh` only if an uncovered kernel-level ownership case is found.
 - Modify: `docs/ROADMAP.md`, `docs/DEVELOPMENT_LOG.md`, `docs/VPN_RELAY_NFTABLES.md`, `AGENTS.md`.
 
-- [ ] **Step 1: Review existing namespace coverage** for foreign same-name table rejection, owned-table reload/cleanup and text fallback on Ubuntu 22.04. Add a nested-comment foreign-table case only if existing coverage does not prove it.
-- [ ] **Step 2: Run the full 9-job CI** on Ubuntu 22.04 and 24.04; require namespace lifecycle, protocol, multi-uplink and Podman jobs to pass.
-- [ ] **Step 3: Document R3.4 completion** with exact commit and successful CI run. State explicitly that production still uses the legacy generator until R3.5.
+- [x] **Step 1: Review existing namespace coverage** for foreign same-name table rejection, owned-table reload/cleanup and text fallback on Ubuntu 22.04. Add a nested-comment foreign-table case only if existing coverage does not prove it.
+- [x] **Step 2: Run the full 9-job CI** on Ubuntu 22.04 and 24.04; require namespace lifecycle, protocol, multi-uplink and Podman jobs to pass.
+- [x] **Step 3: Document R3.4 completion** with exact commit and successful CI run. State explicitly that production still uses the legacy generator until R3.5.
 - [ ] **Step 4: Commit documentation** and wait for a second full 9-job CI on the documentation HEAD.
+
+## Execution result
+
+- Implementation commit: `4f84688d01c4172a64e706abf7226b5d90b17b8d`.
+- Implementation CI: run `44397837114`, success 9/9.
+- Namespace regression covers a same-name foreign table with the ownership marker nested in a chain; startup rejects it, preserves the foreign table and rolls back routing/TUN resources.
+- Documentation closure is committed separately; its own full 9/9 CI remains the final completion gate.
 
 ## Completion Gate
 
-R3.4 is complete only when the helper-backed inspection preserves all ownership invariants and the full 9/9 CI passes on the implementation HEAD and documentation HEAD. R3.5 production switch is a separate plan and must not be started as part of this one.
+R3.4 is complete only when the helper-backed inspection preserves all ownership invariants and the full 9/9 CI passes on both implementation and documentation HEADs. R3.5 production switch is a separate plan and must not be started as part of this one.

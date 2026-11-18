@@ -1,5 +1,13 @@
 # Журнал разработки vpn-relay
 
+## 2026-11-18 — R3.4 nftables ownership inspection
+
+- **Реализация:** ownership inspection переведён на raw helper API `nftables::helper::get_current_ruleset_raw` из `nftables 0.6.3`; typed schema не используется для table comment, поскольку upstream `schema::Table` не представляет это поле.
+- **Правила владения:** точное совпадение family/name/table-level comment; текстовый fallback для nftables 1.0.2 (Ubuntu 22.04) проверяет только комментарий верхнего уровня таблицы. Вложенные chain/rule markers не считаются доказательством владения. Отсутствие таблицы распознаётся только по двум известным diagnostics; остальные helper errors отображаются в существующий `LinuxError` и приводят к fail-closed отказу.
+- **Покрытие:** тесты helper error mapping, узкой классификации not-found, exact JSON ownership, fallback без JSON comment, foreign/nested marker rejection и `Ok(false)` только для отсутствующей таблицы. Namespace test дополнительно подтверждает, что таблица с тем же именем и вложенным marker не принимается, не удаляется, а startup rollback не оставляет policy rules/TUN.
+- **CI реализации:** commit `4f84688d01c4172a64e706abf7226b5d90b17b8d`, run `44397837114`, success 9/9: quality, network core, обе kernel compatibility jobs, WG, AWG 3, AWG 3.1, multi-uplink и Podman.
+- **Граница этапа:** R3.4 ownership inspection завершён; production `SystemNftApplier` по-прежнему применяет legacy `RoutingPlan::nft_script()`. R3.5 production switch — отдельный следующий этап и не входит в R3.4.
+
 ## 2026-11-18 — R3.3 typed/legacy nftables parity
 
 - **База:** ветка `refactor/modular-control-api-nftables`, итоговый HEAD `1c66d497b1df251b19c00576dfcef465e93c13de`.

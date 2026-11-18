@@ -292,13 +292,15 @@ Shutdown/recovery восстанавливают их только при сов
 daemon-written value. Старые или неподдерживаемые версии journal отклоняются
 до десериализации состояния и остаются на диске для ручной диагностики.
 
-## Типизированная модель и parity nftables (этапы R3.2–R3.3)
+## Typed firewall model, parity и ownership nftables (этапы R3.2–R3.4)
 
 `src/routing/firewall.rs` содержит backend-neutral ordered AST: sets, base chains, rules, expressions и actions. Модель строится из `RoutingPlan`; numeric-ifindex режим требует полного взаимно-однозначного отображения всех managed interfaces и сохраняет обе стороны identity mismatch guards. Порядок правил, conntrack decision IDs и NAT pairing остаются частью модели.
 
 Adapter закреплён на `nftables = 0.6.3`. Поддерживаемая часть проходит через upstream schema. В schema 0.6.3 отсутствуют table-level `comment` и тип set `iface_index`; эти два поля сохраняются узким JSON compatibility path. Для name-based модели `to_nftables()` дополнительно проверяет каждый объект десериализацией через тип `NfObject` крейта. Для numeric-ifindex модели используется `to_json_value()`, поскольку upstream schema не может выразить `iface_index`.
 
 **Parity R3.3 пройден, но это пока не production backend.** Интеграционный тест применяет legacy и typed rulesets в отдельных network namespaces и сравнивает нормализованный результат ядра. Пройдены bootstrap, name-based multi-uplink с NAT none/masquerade/SNAT и INPUT/OUTPUT firewall, а также numeric-ifindex multi-uplink/NAT/firewall. Полный CI run `44378855146` на HEAD `1c66d497b1df251b19c00576dfcef465e93c13de` завершился success 9/9. `SystemNftApplier` всё ещё применяет legacy `RoutingPlan::nft_script()`: перед переключением необходимо завершить отдельный R3.4 ownership audit, после чего R3.5 может выполнять production switch и удаление legacy generator.
+
+**Ownership R3.4 также завершён.** `src/linux/nft.rs` читает JSON через `nftables::helper::get_current_ruleset_raw`, затем проверяет exact family/name/table-level comment. Для nftables 1.0.2 сохранён текстовый fallback, который проверяет только top-level table comment; вложенные chain/rule comments не дают ownership. Ошибки helper API преобразуются в существующий `LinuxError`; только узкие not-found diagnostics дают `Ok(false)`, все прочие ошибки fail closed. Unit и namespace regressions, включая конфликт с чужой таблицей с вложенным `managed by vpn-relay`, прошли. Реализация commit `4f84688d01c4172a64e706abf7226b5d90b17b8d`, CI run `44397837114` success 9/9. Production всё ещё использует legacy `RoutingPlan::nft_script()`; R3.5 — отдельный switch gate.
 
 ## Проверки и ограничения
 
