@@ -1042,7 +1042,15 @@ fn firewall_model_preserves_numeric_identity_guards() {
 
 #[test]
 fn firewall_model_serializes_typed_nftables_schema() {
-    let plan = RoutingPlan::from_config(&sample_config());
+    let mut config = sample_config();
+    config.firewall.input.rules.push(ConfigFirewallRule {
+        interface: "wg-server".to_owned(),
+        source: Some(vec!["10.0.0.0/24".to_owned(), "10.1.0.0/24".to_owned()]),
+        destination: None,
+        protocol: Some(FirewallProtocol::Tcp),
+        ports: Some(vec![22, 443]),
+    });
+    let plan = RoutingPlan::from_config(&config);
     let model = plan.firewall_ruleset().unwrap();
     let schema = model.to_nftables().unwrap();
     let json = serde_json::to_value(schema).unwrap();
@@ -1088,11 +1096,23 @@ fn firewall_model_serializes_typed_nftables_schema() {
         })
         .unwrap();
     assert!(input_rule["expr"].is_array());
-    assert!(input_rule["expr"]
-        .as_array()
-        .unwrap()
+    let expressions = input_rule["expr"].as_array().unwrap();
+    assert!(expressions
         .iter()
         .any(|expression| expression.get("match").is_some()));
+    assert!(expressions.iter().any(|expression| {
+        expression["match"]["op"] == "in"
+            && expression["match"]["left"]["payload"]["protocol"] == "ip"
+            && expression["match"]["left"]["payload"]["field"] == "saddr"
+            && expression["match"]["right"]["set"]
+                == serde_json::json!(["10.0.0.0/24", "10.1.0.0/24"])
+    }));
+    assert!(expressions.iter().any(|expression| {
+        expression["match"]["op"] == "in"
+            && expression["match"]["left"]["payload"]["protocol"] == "th"
+            && expression["match"]["left"]["payload"]["field"] == "dport"
+            && expression["match"]["right"]["set"] == serde_json::json!([22, 443])
+    }));
 }
 
 #[test]
