@@ -44,12 +44,12 @@
 - В numeric mode валидировать полный one-to-one map: все managed interfaces присутствуют, индексы ненулевые и уникальные; `None` означает штатный name-based mode.
 - Сохранять ordered `Vec` для объектов и chain rules.
 
-- [ ] RED: добавить `firewall_model_preserves_table_chain_and_set_identity`; проверить family/table/comment, порядок пяти base chains, managed interface set и IPv6 selector set в name/index modes.
-- [ ] RED: добавить `firewall_model_rejects_incomplete_interface_index_map`; проверить, что missing/zero/duplicate ifindex возвращает ошибку, а не молча исключает интерфейс из set.
-- [ ] Проверить ожидаемое отсутствие `firewall_ruleset`/модели до реализации.
-- [ ] GREEN: реализовать объекты, sets и base chains, включая корректный fail-closed bootstrap variant.
-- [ ] Запустить `cargo fmt --all --check`, `cargo check --locked --all-targets`, `cargo test --locked --all-targets`.
-- [ ] Commit: `feat(routing): add typed firewall object model`.
+- [x] RED: добавить `firewall_model_preserves_table_chain_and_set_identity`; проверить family/table/comment, порядок пяти base chains, managed interface set и IPv6 selector set в name/index modes.
+- [x] RED: добавить `firewall_model_rejects_incomplete_interface_index_map`; проверить, что missing/zero/duplicate ifindex возвращает ошибку, а не молча исключает интерфейс из set.
+- [x] Проверить ожидаемое отсутствие `firewall_ruleset`/модели до реализации.
+- [x] GREEN: реализовать объекты, sets и base chains, включая корректный fail-closed bootstrap variant.
+- [x] Запустить `cargo fmt --all --check`, `cargo check --locked --all-targets`, `cargo test --locked --all-targets`.
+- [x] Commit: `feat(routing): add typed firewall object model`.
 
 ### Задача 2. Typed rules, matches и actions
 
@@ -62,11 +62,11 @@
 - Представить meta/ct/payload expressions, comparisons, bitwise AND/OR, mangle, counter, verdict, masquerade и SNAT без nft syntax strings.
 - Добавить построение prerouting, IPv6 guards, INPUT/OUTPUT, FORWARD и POSTROUTING rules в том же порядке, что legacy generator.
 
-- [ ] RED: добавить тесты `firewall_model_preserves_managed_host_policy_order`, `firewall_model_preserves_conntrack_decision_and_nat_pairing` и `firewall_model_preserves_numeric_identity_guards`.
-- [ ] Проверить RED по отсутствующим typed rules/expressions и assertions на порядок.
-- [ ] GREEN: построить все typed rules из `RoutingPlan`, включая пустые/multiple CIDR, protocol/ports, bootstrap и numeric-ifindex cases.
-- [ ] Запустить полный Rust quality набор и проверить существующие nft script assertions без изменений.
-- [ ] Commit: `feat(routing): model nft firewall rules and actions`.
+- [x] RED: добавить тесты `firewall_model_preserves_managed_host_policy_order`, `firewall_model_preserves_conntrack_decision_and_nat_pairing` и `firewall_model_preserves_numeric_identity_guards`.
+- [x] Проверить RED по отсутствующим typed rules/expressions и assertions на порядок.
+- [x] GREEN: построить все typed rules из `RoutingPlan`, включая пустые/multiple CIDR, protocol/ports, bootstrap и numeric-ifindex cases.
+- [x] Запустить полный Rust quality набор и проверить существующие nft script assertions без изменений.
+- [x] Commit: `feat(routing): model nft firewall rules and actions`.
 
 ### Задача 3. Adapter к nftables crate и raw compatibility fields
 
@@ -80,11 +80,11 @@
 - Добавить `FirewallRuleset::to_json_value()` (или эквивалентный serializer), который получает JSON из typed schema и добавляет только table-level `comment` и `iface_index` compatibility fields.
 - Не менять `SystemNftApplier` и `Runtime`.
 
-- [ ] RED: добавить `firewall_model_serializes_typed_nftables_schema` и `firewall_model_preserves_raw_compatibility_fields`; assertions проверяют command/object ordering, expression shape, ownership comment и ifindex datatype.
-- [ ] Убедиться, что тесты падают до adapter implementation.
-- [ ] GREEN: реализовать schema conversion и минимальный raw JSON adapter только для двух неподдерживаемых полей.
-- [ ] Обновить lockfile и запустить `cargo fmt --all --check`, `cargo check --locked --all-targets`, `cargo clippy --locked --all-targets`, `cargo test --locked --all-targets`.
-- [ ] Commit: `feat(routing): serialize firewall model with nftables schema`.
+- [x] RED: добавить `firewall_model_serializes_typed_nftables_schema` и `firewall_model_preserves_raw_compatibility_fields`; assertions проверяют command/object ordering, expression shape, ownership comment и ifindex datatype.
+- [x] Убедиться, что тесты падают до adapter implementation.
+- [x] GREEN: реализовать schema conversion и минимальный raw JSON adapter только для двух неподдерживаемых полей.
+- [x] Обновить lockfile и запустить `cargo fmt --all --check`, `cargo check --locked --all-targets`, `cargo clippy --locked --all-targets`, `cargo test --locked --all-targets`.
+- [x] Commit: `feat(routing): serialize firewall model with nftables schema`.
 
 ### Задача 4. Документация и граница production backend
 
@@ -92,10 +92,15 @@
 - Изменить: `docs/ROADMAP.md`, `docs/DEVELOPMENT_LOG.md`, `AGENTS.md`, `docs/VPN_RELAY_NFTABLES.md`
 - Тесты: существующие tests остаются без удаления/переименования.
 
-- [ ] Обновить документацию: зафиксировать typed model, adapter и два raw compatibility исключения; явно сохранить script backend как production source of truth до parity/production switch.
-- [ ] Запустить полный CI (9 jobs) и проверить актуальный HEAD.
-- [ ] Commit: `docs(nftables): document typed firewall model`.
+- [x] Обновить документацию: зафиксировать typed model, adapter и два raw compatibility исключения; явно сохранить script backend как production source of truth до parity/production switch.
+- [x] Запустить полный CI (9 jobs) и проверить актуальный HEAD.
+- [x] Commit: `docs(nftables): document typed firewall model`.
 
 ## Проверка перед следующим этапом
 
 R3.2 считается завершённым только после успешного полного CI на HEAD последнего commit. R3.3 должен сравнить нормализованные rulesets в отдельных netns для bootstrap, numeric-ifindex, multi-uplink, NAT none/masquerade/SNAT и INPUT/OUTPUT. До этого production продолжает применять `RoutingPlan::nft_script()`.
+
+
+## Результат выполнения
+
+R3.2 завершён на HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`. Полный CI run `44296492893` завершился success: 9/9 jobs. Production backend не переключался. Следующий отдельный этап — R3.3 parity в отдельных netns; R3.4 ownership и R3.5 переключение остаются обязательными и не считаются выполненными этим планом.

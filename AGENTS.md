@@ -58,7 +58,7 @@ cargo run --locked -- --config vpn-relay.example.toml --check
 - `src/lib.rs` — публичная поверхность библиотеки и подключение модулей.
 - `src/config/{mod,schema,validate,reload,parse}.rs` — TOML-модель, serde-типы, defaults, синтаксический и семантический разбор, валидация и правила совместимости reload.
 - `src/import.rs` — импорт WG/AWG .conf, разбор секций и параметров, преобразование в текущую TOML-модель, проверка результата, атомарная запись и import tests.
-- `src/routing/{mod,marks,nft_text,tests}.rs` — backend-independent routing plan, egress resources/routing decisions, durable conntrack decision marks и текущий nftables script generator. Генератор остаётся чистым и не применяет правила.
+- `src/routing/{mod,marks,nft_text,firewall,tests}.rs` — backend-independent routing plan, egress resources/routing decisions, durable conntrack decision marks, legacy nftables script generator и typed firewall AST/adapter (`nftables` 0.6.3). Генератор остаётся чистым и не применяет правила.
 - `src/linux/{exec,nft,policy,link,netlink,tests}.rs` — Linux adapters: process execution, ownership-safe nftables apply/remove через `NftApplier`, iproute2 policy routing, interface identity, rtnetlink и тесты.
 - `src/runtime/mod.rs` — orchestration и lifecycle: startup/shutdown, snapshots/stats, signal handling; `src/runtime/lock.rs` — instance lock и namespace-scoped пути; `src/runtime/state.rs` — durable conntrack mark history; `src/runtime/forwarding.rs` — IPv4 forwarding lifecycle и recovery; `src/runtime/reload.rs` — peer replacement и транзакционный live config reload; `src/runtime/tests.rs` — runtime unit tests. Один injected `NftApplier` используется на всех стадиях firewall lifecycle.
 - `src/control/` — transport-independent Control API (`api.rs`), request dispatcher (`dispatch.rs`) и Unix domain socket transport/client (`unix.rs`); transport errors имеют отдельные стабильные категории, wire compatibility с legacy JSON сохраняется.
@@ -116,7 +116,7 @@ BoringTun backend создаёт устройство с отключённым 
 - firewall allow exceptions для host INPUT/OUTPUT;
 - nftables policy и iproute2 команды.
 
-`routing.rs` генерирует правила, но не применяет их. Применение и ownership checks находятся в `linux.rs`. Документ с детальной семантикой — `docs/VPN_RELAY_NFTABLES.md`.
+`routing/` генерирует правила, но не применяет их. `nft_text.rs` остаётся production source of truth для `SystemNftApplier`; `firewall.rs` содержит параллельную typed AST и adapter к `nftables` 0.6.3. Его JSON compatibility serializer сохраняет table-level ownership comment и `iface_index`, которых нет в upstream schema. Typed backend нельзя включать до R3.3 нормализованного сравнения в отдельных network namespaces и последующего подтверждения R3.4 ownership. Применение и ownership checks находятся в `linux/nft.rs`. Документ с детальной семантикой — `docs/VPN_RELAY_NFTABLES.md`.
 
 Ключевые правила:
 - Новый транзитный flow классифицируется по ingress + source/destination selectors и получает routing mark и conntrack decision ID.

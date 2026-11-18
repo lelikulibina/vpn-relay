@@ -1,5 +1,15 @@
 # Журнал разработки vpn-relay
 
+## 2026-11-18 — R3.2 typed firewall model
+
+- **База:** ветка `refactor/modular-control-api-nftables`, HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`.
+- **Модель:** добавлен ordered typed AST в `src/routing/firewall.rs` для interface selectors, sets, base chains, rules, expressions и actions. Построение сохраняет порядок legacy policy, bootstrap drop-only, conntrack decision IDs, NAT pairing, INPUT/OUTPUT guards и numeric-ifindex identity guards. Неполный, нулевой или дублирующий ifindex map отклоняется.
+- **Adapter:** закреплён `nftables = 0.6.3`. Name-based объекты проверяются upstream schema; `to_json_value()` сохраняет два отсутствующих в schema полей — table-level ownership `comment` и set type `iface_index`. Для numeric-ifindex модели upstream schema 0.6.3 недостаточна, поэтому применяется compatibility JSON serializer.
+- **Тесты:** покрыты identity/order/bootstrap, typed expressions, CIDR/port set encoding, schema object ordering, compatibility fields и отклонение некорректной карты интерфейсов.
+- **CI:** run `44296492893`, HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`, результат `success`, все 9/9 jobs: quality, обе kernel compatibility jobs, network core, WG, AWG 3, AWG 3.1, multi-uplink и Podman.
+- **Граница этапа:** production `SystemNftApplier` по-прежнему применяет `RoutingPlan::nft_script()`. R3.2 не является переходом production на typed adapter. R3.3 parity, R3.4 ownership и R3.5 switch не выполнены и остаются обязательными следующими этапами.
+
+
 Журнал содержит только проверенные состояния ветки и результаты выполненных проверок. Архитектурные этапы считаются завершёнными по фактическому коду и критериям `docs/ROADMAP.md`, а не по прежним записям.
 
 ## 2026-11-14

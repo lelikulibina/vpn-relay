@@ -292,6 +292,14 @@ Shutdown/recovery восстанавливают их только при сов
 daemon-written value. Старые или неподдерживаемые версии journal отклоняются
 до десериализации состояния и остаются на диске для ручной диагностики.
 
+## Типизированная модель nftables (этап R3.2)
+
+`src/routing/firewall.rs` содержит backend-neutral ordered AST: sets, base chains, rules, expressions и actions. Модель строится из `RoutingPlan`; numeric-ifindex режим требует полного взаимно-однозначного отображения всех managed interfaces и сохраняет обе стороны identity mismatch guards. Порядок правил, conntrack decision IDs и NAT pairing остаются частью модели.
+
+Adapter закреплён на `nftables = 0.6.3`. Поддерживаемая часть проходит через upstream schema. В schema 0.6.3 отсутствуют table-level `comment` и тип set `iface_index`; эти два поля сохраняются узким JSON compatibility path. Для name-based модели `to_nftables()` дополнительно проверяет каждый объект десериализацией через тип `NfObject` крейта. Для numeric-ifindex модели используется `to_json_value()`, поскольку upstream schema не может выразить `iface_index`.
+
+**Это пока не production backend.** `SystemNftApplier` продолжает применять legacy `RoutingPlan::nft_script()`. Typed adapter нельзя включать до R3.3: сравнения нормализованных rulesets, фактически применённых в отдельных network namespaces для bootstrap, numeric-ifindex, multi-uplink, NAT none/masquerade/SNAT и INPUT/OUTPUT. Проверка ownership по R3.4 остаётся отдельным обязательным gate.
+
 ## Проверки и ограничения
 
 Локальные Rust-тесты запускаются командой cargo test --locked --all-targets.
