@@ -1044,7 +1044,7 @@ fn firewall_model_preserves_numeric_identity_guards() {
 fn firewall_model_serializes_typed_nftables_schema() {
     let plan = RoutingPlan::from_config(&sample_config());
     let model = plan.firewall_ruleset().unwrap();
-    let schema = model.to_nftables();
+    let schema = model.to_nftables().unwrap();
     let json = serde_json::to_value(schema).unwrap();
     let objects = json["nftables"].as_array().unwrap();
 

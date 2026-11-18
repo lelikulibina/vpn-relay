@@ -380,6 +380,10 @@ impl RoutingPlan {
                     }
                     selectors.push(InterfaceSelector::Index(index));
                 }
+                selectors.sort_by_key(|selector| match selector {
+                    InterfaceSelector::Index(index) => *index,
+                    InterfaceSelector::Name(_) => 0,
+                });
                 (FirewallSetType::IfaceIndex, selectors)
             }
         };
@@ -395,6 +399,13 @@ impl RoutingPlan {
                 None => Ok(InterfaceSelector::Name(name.clone())),
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let mut ipv6 = ipv6;
+        if set_type == FirewallSetType::IfaceIndex {
+            ipv6.sort_by_key(|selector| match selector {
+                InterfaceSelector::Index(index) => *index,
+                InterfaceSelector::Name(_) => 0,
+            });
+        }
         let sets = vec![
             FirewallSet {
                 name: "managed_interfaces".into(),
