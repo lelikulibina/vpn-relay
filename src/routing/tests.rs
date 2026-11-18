@@ -1161,9 +1161,7 @@ fn typed_firewall_matches_legacy_kernel_rulesets() {
     struct TestNetns(String);
     impl Drop for TestNetns {
         fn drop(&mut self) {
-            let _ = Command::new("ip")
-                .args(["netns", "del", &self.0])
-                .output();
+            let _ = Command::new("ip").args(["netns", "del", &self.0]).output();
         }
     }
 
@@ -1181,9 +1179,33 @@ fn typed_firewall_matches_legacy_kernel_rulesets() {
         );
         for args in [
             vec!["-n", &namespace.0, "link", "set", "lo", "up"],
-            vec!["-n", &namespace.0, "link", "add", "wg-server", "type", "dummy"],
-            vec!["-n", &namespace.0, "link", "add", "awg-primary", "type", "dummy"],
-            vec!["-n", &namespace.0, "link", "add", "awg-secondary", "type", "dummy"],
+            vec![
+                "-n",
+                &namespace.0,
+                "link",
+                "add",
+                "wg-server",
+                "type",
+                "dummy",
+            ],
+            vec![
+                "-n",
+                &namespace.0,
+                "link",
+                "add",
+                "awg-primary",
+                "type",
+                "dummy",
+            ],
+            vec![
+                "-n",
+                &namespace.0,
+                "link",
+                "add",
+                "awg-secondary",
+                "type",
+                "dummy",
+            ],
             vec!["-n", &namespace.0, "link", "set", "wg-server", "up"],
             vec!["-n", &namespace.0, "link", "set", "awg-primary", "up"],
             vec!["-n", &namespace.0, "link", "set", "awg-secondary", "up"],
@@ -1335,28 +1357,26 @@ fn typed_firewall_matches_legacy_kernel_rulesets() {
     let full_plan = RoutingPlan::from_config(&config);
     let scenarios = [
         ("bootstrap", full_plan.fail_closed_bootstrap(), false),
-        ("name-based-multi-uplink-nat-firewall", full_plan.clone(), false),
+        (
+            "name-based-multi-uplink-nat-firewall",
+            full_plan.clone(),
+            false,
+        ),
         ("numeric-ifindex-multi-uplink-nat-firewall", full_plan, true),
     ];
 
     let mut namespaces = Vec::new();
     for (scenario_index, (scenario, mut plan, indexed)) in scenarios.into_iter().enumerate() {
         let suffix = std::process::id();
-        let (legacy_ns, legacy_indices) =
-            setup_netns(format!("vpnrp-{suffix}-{scenario_index}-l"));
-        let (typed_ns, typed_indices) =
-            setup_netns(format!("vpnrp-{suffix}-{scenario_index}-t"));
+        let (legacy_ns, legacy_indices) = setup_netns(format!("vpnrp-{suffix}-{scenario_index}-l"));
+        let (typed_ns, typed_indices) = setup_netns(format!("vpnrp-{suffix}-{scenario_index}-t"));
         if indexed {
             assert_eq!(legacy_indices, typed_indices);
             plan.bind_interface_indices(legacy_indices).unwrap();
         }
 
         apply_nft(&legacy_ns.0, &["-f", "-"], plan.nft_script().as_bytes());
-        let typed_json = plan
-            .firewall_ruleset()
-            .unwrap()
-            .to_json_value()
-            .unwrap();
+        let typed_json = plan.firewall_ruleset().unwrap().to_json_value().unwrap();
         apply_nft(
             &typed_ns.0,
             &["-j", "-f", "-"],

@@ -90,6 +90,7 @@ pub(crate) enum FirewallCtKey {
 pub(crate) enum FirewallCompareOperator {
     Equal,
     NotEqual,
+    In,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FirewallValue {
@@ -168,6 +169,9 @@ fn cmp(
 }
 fn eq(left: FirewallExpression, right: FirewallValue) -> FirewallExpression {
     cmp(left, FirewallCompareOperator::Equal, right)
+}
+fn inside(left: FirewallExpression, right: FirewallValue) -> FirewallExpression {
+    cmp(left, FirewallCompareOperator::In, right)
 }
 fn rule(expressions: Vec<FirewallExpression>, actions: Vec<FirewallAction>) -> FirewallRule {
     FirewallRule {
@@ -261,7 +265,7 @@ fn host_allow(
         ));
     }
     expressions.extend([
-        eq(
+        inside(
             ct(FirewallCtKey::State),
             FirewallValue::State(vec!["new".into(), "established".into(), "related".into()]),
         ),
@@ -468,7 +472,7 @@ impl RoutingPlan {
         input.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::IifName, indexed),
-                eq(ct(FirewallCtKey::State), named("invalid")),
+                inside(ct(FirewallCtKey::State), named("invalid")),
             ],
             vec![FirewallAction::Drop],
         ));
@@ -478,7 +482,7 @@ impl RoutingPlan {
         input.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::IifName, indexed),
-                eq(
+                inside(
                     ct(FirewallCtKey::State),
                     FirewallValue::State(vec!["established".into(), "related".into()]),
                 ),
@@ -501,7 +505,7 @@ impl RoutingPlan {
         output.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::OifName, indexed),
-                eq(ct(FirewallCtKey::State), named("invalid")),
+                inside(ct(FirewallCtKey::State), named("invalid")),
             ],
             vec![FirewallAction::Drop],
         ));
@@ -511,7 +515,7 @@ impl RoutingPlan {
         output.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::OifName, indexed),
-                eq(
+                inside(
                     ct(FirewallCtKey::State),
                     FirewallValue::State(vec!["established".into(), "related".into()]),
                 ),
@@ -541,7 +545,7 @@ impl RoutingPlan {
         prerouting.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::IifName, indexed),
-                eq(
+                inside(
                     ct(FirewallCtKey::State),
                     FirewallValue::State(vec!["established".into(), "related".into()]),
                 ),
@@ -559,7 +563,7 @@ impl RoutingPlan {
             prerouting.push(rule(
                 vec![
                     managed_expr(FirewallMetaKey::IifName, indexed),
-                    eq(
+                    inside(
                         ct(FirewallCtKey::State),
                         FirewallValue::State(vec!["established".into(), "related".into()]),
                     ),
@@ -588,7 +592,7 @@ impl RoutingPlan {
                     &d.ingress,
                     &self.interface_indices,
                 ),
-                eq(ct(FirewallCtKey::State), named("new")),
+                inside(ct(FirewallCtKey::State), named("new")),
             ];
             if let Some(src) = &d.source {
                 expressions.push(FirewallExpression::Payload {
@@ -632,7 +636,7 @@ impl RoutingPlan {
         forward.push(rule(
             vec![
                 managed_expr(FirewallMetaKey::IifName, indexed),
-                eq(ct(FirewallCtKey::State), named("invalid")),
+                inside(ct(FirewallCtKey::State), named("invalid")),
             ],
             vec![FirewallAction::Drop],
         ));
@@ -645,7 +649,7 @@ impl RoutingPlan {
                         &self.interface_indices,
                     ),
                     interface_expr(FirewallMetaKey::OifName, &d.egress, &self.interface_indices),
-                    eq(
+                    inside(
                         ct(FirewallCtKey::State),
                         FirewallValue::State(vec![
                             "new".into(),
@@ -667,7 +671,7 @@ impl RoutingPlan {
                         &d.ingress,
                         &self.interface_indices,
                     ),
-                    eq(
+                    inside(
                         ct(FirewallCtKey::State),
                         FirewallValue::State(vec!["established".into(), "related".into()]),
                     ),
@@ -773,7 +777,7 @@ impl FirewallRuleset {
             match value {
                 FirewallValue::String(value) => json!(value),
                 FirewallValue::Number(value) => json!(value),
-                FirewallValue::State(values) => json!({"set": values}),
+                FirewallValue::State(values) => json!(values),
             }
         }
 
@@ -806,6 +810,7 @@ impl FirewallRuleset {
                         "op": match operator {
                             FirewallCompareOperator::Equal => "==",
                             FirewallCompareOperator::NotEqual => "!=",
+                            FirewallCompareOperator::In => "in",
                         },
                         "left": expression(left),
                         "right": value(right),
