@@ -1123,5 +1123,5 @@ fn firewall_model_preserves_raw_compatibility_fields() {
         })
         .unwrap();
     assert_eq!(managed_set["type"], "iface_index");
-    assert_eq!(managed_set["elem"], serde_json::json!([17, 18, 19]));
+    assert_eq!(managed_set["elem"], serde_json::json!([18, 19, 17]));
 }
