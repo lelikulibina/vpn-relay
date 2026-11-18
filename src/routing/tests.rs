@@ -1039,3 +1039,86 @@ fn firewall_model_preserves_numeric_identity_guards() {
         }
     }
 }
+
+
+#[test]
+fn firewall_model_serializes_typed_nftables_schema() {
+    let plan = RoutingPlan::from_config(&sample_config());
+    let model = plan.firewall_ruleset().unwrap();
+    let schema = model.to_nftables();
+    let json = serde_json::to_value(schema).unwrap();
+    let objects = json["nftables"].as_array().unwrap();
+
+    assert_eq!(objects[0]["add"]["table"]["family"], "inet");
+    assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
+
+    let set_positions: Vec<_> = objects
+        .iter()
+        .enumerate()
+        .filter(|(_, object)| object["add"]["set"].is_object())
+        .map(|(index, _)| index)
+        .collect();
+    let chain_positions: Vec<_> = objects
+        .iter()
+        .enumerate()
+        .filter(|(_, object)| object["add"]["chain"].is_object())
+        .map(|(index, _)| index)
+        .collect();
+    let rule_positions: Vec<_> = objects
+        .iter()
+        .enumerate()
+        .filter(|(_, object)| object["add"]["rule"].is_object())
+        .map(|(index, _)| index)
+        .collect();
+
+    assert_eq!(set_positions.len(), 2);
+    assert_eq!(chain_positions.len(), 5);
+    assert!(!rule_positions.is_empty());
+    assert!(set_positions.iter().all(|position| *position < chain_positions[0]));
+    assert!(chain_positions.iter().all(|position| *position < rule_positions[0]));
+
+    let input_rule = objects
+        .iter()
+        .find_map(|object| {
+            let rule = object.get("add")?.get("rule")?;
+            (rule["chain"] == "input").then_some(rule)
+        })
+        .unwrap();
+    assert!(input_rule["expr"].is_array());
+    assert!(input_rule["expr"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|expression| expression.get("match").is_some()));
+}
+
+#[test]
+fn firewall_model_preserves_raw_compatibility_fields() {
+    let mut plan = RoutingPlan::from_config(&sample_config());
+    plan.bind_interface_indices(BTreeMap::from([
+        ("wg-server".to_owned(), 17),
+        ("awg-primary".to_owned(), 18),
+        ("awg-secondary".to_owned(), 19),
+    ]))
+    .unwrap();
+
+    let model = plan.firewall_ruleset().unwrap();
+    let json = model.to_json_value().unwrap();
+    let objects = json["nftables"].as_array().unwrap();
+
+    let table = objects
+        .iter()
+        .find_map(|object| object.get("add")?.get("table"))
+        .unwrap();
+    assert_eq!(table["comment"], "managed by vpn-relay");
+
+    let managed_set = objects
+        .iter()
+        .find_map(|object| {
+            let set = object.get("add")?.get("set")?;
+            (set["name"] == "managed_interfaces").then_some(set)
+        })
+        .unwrap();
+    assert_eq!(managed_set["type"], "iface_index");
+    assert_eq!(managed_set["elem"], serde_json::json!([17, 18, 19]));
+}
