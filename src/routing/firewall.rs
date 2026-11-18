@@ -727,3 +727,172 @@ impl RoutingPlan {
         })
     }
 }
+
+impl FirewallRuleset {
+    /// Convert the supported portion of this model into nftables-rs 0.6.3 schema.
+    /// The upstream schema cannot represent table comments or iface_index sets.
+    /// Those values are retained by to_json_value; numeric sets are rejected
+    /// rather than silently misrepresented as interface-name sets.
+    pub(crate) fn to_nftables(
+        &self,
+    ) -> Result<nftables::schema::Nftables<'static>, String> {
+        if self.sets.iter().any(|set| set.data_type == FirewallSetType::IfaceIndex) {
+            return Err("nftables 0.6.3 schema does not support iface_index".into());
+        }
+        let mut value = self.to_json_value().map_err(|error| error.to_string())?;
+        if let Some(table) = value["nftables"]
+            .as_array_mut()
+            .and_then(|objects| objects.first_mut())
+            .and_then(|object| object.get_mut("add"))
+            .and_then(|add| add.get_mut("table"))
+        {
+            if let Some(fields) = table.as_object_mut() {
+                fields.remove("comment");
+            }
+        }
+        serde_json::from_value(value).map_err(|error| error.to_string())
+    }
+
+    /// Serialize the model and preserve the two compatibility fields absent
+    /// from nftables-rs 0.6.3: table ownership comment and iface_index.
+    pub(crate) fn to_json_value(&self) -> Result<serde_json::Value, serde_json::Error> {
+        use serde_json::{json, Value};
+
+        fn value(value: &FirewallValue) -> Value {
+            match value {
+                FirewallValue::String(value) => json!(value),
+                FirewallValue::Number(value) => json!(value),
+                FirewallValue::State(values) => json!({"set": values}),
+            }
+        }
+
+        fn expression(expression: &FirewallExpression) -> Value {
+            match expression {
+                FirewallExpression::Meta(key) => json!({"meta": {"key": match key {
+                    FirewallMetaKey::IifName => "iifname",
+                    FirewallMetaKey::OifName => "oifname",
+                    FirewallMetaKey::Iif => "iif",
+                    FirewallMetaKey::Oif => "oif",
+                    FirewallMetaKey::NfProto => "nfproto",
+                    FirewallMetaKey::Mark => "mark",
+                    FirewallMetaKey::L4Proto => "l4proto",
+                }}}),
+                FirewallExpression::Ct(key) => json!({"ct": {"key": match key {
+                    FirewallCtKey::Mark => "mark",
+                    FirewallCtKey::State => "state",
+                    FirewallCtKey::Direction => "direction",
+                }}}),
+                FirewallExpression::Number(number) => json!(number),
+                FirewallExpression::Payload { protocol, field } => {
+                    json!({"payload": {"protocol": protocol, "field": field}})
+                }
+                FirewallExpression::Compare { left, operator, right } => json!({
+                    "match": {
+                        "op": match operator {
+                            FirewallCompareOperator::Equal => "==",
+                            FirewallCompareOperator::NotEqual => "!=",
+                        },
+                        "left": expression(left),
+                        "right": value(right),
+                    }
+                }),
+                FirewallExpression::BitwiseAnd { expression: inner, mask } => {
+                    json!({"&": [expression(inner), mask]})
+                }
+                FirewallExpression::BitwiseOr { left, right } => {
+                    json!({"|": [expression(left), expression(right)]})
+                }
+                FirewallExpression::Set(values) => {
+                    json!({"set": values.iter().map(value).collect::<Vec<_>>()})
+                }
+                FirewallExpression::InSet { expression: inner, set } => json!({
+                    "match": {
+                        "op": "in",
+                        "left": expression(inner),
+                        "right": format!("@{}", set),
+                    }
+                }),
+            }
+        }
+
+        fn action(action: &FirewallAction) -> Value {
+            match action {
+                FirewallAction::Mangle { key, value } => json!({
+                    "mangle": {
+                        "key": match key {
+                            FirewallMangleKey::ConntrackMark => {"ct": {"key": "mark"}},
+                            FirewallMangleKey::MetaMark => {"meta": {"key": "mark"}},
+                        },
+                        "value": expression(value),
+                    }
+                }),
+                FirewallAction::Counter => json!({"counter": null}),
+                FirewallAction::Accept => json!({"accept": null}),
+                FirewallAction::Drop => json!({"drop": null}),
+                FirewallAction::Return => json!({"return": null}),
+                FirewallAction::Masquerade => json!({"masquerade": null}),
+                FirewallAction::Snat(address) => json!({"snat": {"addr": address.to_string()}}),
+            }
+        }
+
+        let mut objects = vec![json!({"add": {"table": {
+            "family": self.family,
+            "name": self.table,
+            "comment": self.comment,
+        }}})];
+
+        for set in &self.sets {
+            let data_type = match set.data_type {
+                FirewallSetType::IfName => "ifname",
+                FirewallSetType::IfaceIndex => "iface_index",
+            };
+            let elements = set.elements.iter().map(|selector| match selector {
+                InterfaceSelector::Name(name) => json!(name),
+                InterfaceSelector::Index(index) => json!(index),
+            }).collect::<Vec<_>>();
+            objects.push(json!({"add": {"set": {
+                "family": self.family,
+                "table": self.table,
+                "name": set.name,
+                "type": data_type,
+                "elem": elements,
+            }}}));
+        }
+
+        for chain in &self.chains {
+            let priority = match chain.priority.as_str() {
+                "raw" => -300,
+                "mangle" => -150,
+                "dstnat" => -100,
+                "filter" => 0,
+                "security" => 50,
+                "srcnat" => 100,
+                other => other.parse::<i32>().unwrap_or(0),
+            };
+            objects.push(json!({"add": {"chain": {
+                "family": self.family,
+                "table": self.table,
+                "name": chain.name,
+                "type": chain.chain_type,
+                "hook": chain.hook,
+                "prio": priority,
+                "policy": chain.policy,
+            }}}));
+        }
+
+        for chain in &self.chains {
+            for rule in &chain.rules {
+                let mut statements = rule.expressions.iter().map(expression).collect::<Vec<_>>();
+                statements.extend(rule.actions.iter().map(action));
+                objects.push(json!({"add": {"rule": {
+                    "family": self.family,
+                    "table": self.table,
+                    "chain": chain.name,
+                    "expr": statements,
+                }}}));
+            }
+        }
+
+        Ok(json!({"nftables": objects}))
+    }
+}
