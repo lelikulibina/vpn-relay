@@ -907,12 +907,19 @@ impl FirewallRuleset {
 
         for chain in &self.chains {
             for rule in &chain.rules {
-                let mut statements = Vec::with_capacity(rule.expressions.len() + rule.actions.len());
+                let mut statements =
+                    Vec::with_capacity(rule.expressions.len() + rule.actions.len());
                 let mut index = 0;
                 while index < rule.expressions.len() {
                     if matches!(
-                        (&rule.expressions[index], rule.expressions.get(index + 1)),
-                        (FirewallExpression::Payload { .. }, Some(FirewallExpression::Set(_)))
+                        (
+                            &rule.expressions[index],
+                            rule.expressions.get(index + 1)
+                        ),
+                        (
+                            FirewallExpression::Payload { .. },
+                            Some(FirewallExpression::Set(_))
+                        )
                     ) {
                         statements.push(json!({
                             "match": {
