@@ -1097,6 +1097,7 @@ fn firewall_model_serializes_typed_nftables_schema() {
         .unwrap();
     assert!(input_rule["expr"].is_array());
     let expressions = input_rule["expr"].as_array().unwrap();
+    println!("typed nftables input expressions: {expressions:#?}");
     assert!(expressions
         .iter()
         .any(|expression| expression.get("match").is_some()));
