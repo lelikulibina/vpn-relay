@@ -1387,9 +1387,9 @@ fn nft_json_batch_builder_creates_missing_table_without_delete() {
     );
     assert_eq!(objects[0]["add"]["table"]["family"], "inet");
     assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
-    assert!(objects.iter().any(|object| {
-        object["add"]["chain"]["name"] == "vpn_relay_owner"
-    }));
+    assert!(objects
+        .iter()
+        .any(|object| { object["add"]["chain"]["name"] == "vpn_relay_owner" }));
     assert!(objects.iter().any(|object| {
         object["add"]["rule"]["chain"] == "vpn_relay_owner"
             && object["add"]["rule"]["comment"] == "managed by vpn-relay"
@@ -1414,9 +1414,9 @@ fn nft_json_batch_builder_deletes_owned_table_before_recreating_it() {
     );
     assert_eq!(objects[1]["add"]["table"]["family"], "inet");
     assert_eq!(objects[1]["add"]["table"]["name"], "vpn_relay");
-    assert!(objects.iter().any(|object| {
-        object["add"]["chain"]["name"] == "vpn_relay_owner"
-    }));
+    assert!(objects
+        .iter()
+        .any(|object| { object["add"]["chain"]["name"] == "vpn_relay_owner" }));
     assert!(objects.iter().any(|object| {
         object["add"]["rule"]["chain"] == "vpn_relay_owner"
             && object["add"]["rule"]["comment"] == "managed by vpn-relay"

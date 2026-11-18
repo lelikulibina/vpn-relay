@@ -131,7 +131,9 @@ pub(super) fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
                     && rule
                         .get("expr")
                         .and_then(Value::as_array)
-                        .is_some_and(|expr| expr.iter().any(|element| element.get("counter").is_some()))
+                        .is_some_and(|expr| {
+                            expr.iter().any(|element| element.get("counter").is_some())
+                        })
             })
         })
 }
