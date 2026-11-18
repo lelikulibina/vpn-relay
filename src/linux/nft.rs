@@ -6,6 +6,50 @@ use serde_json::Value;
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+/// Serialize the typed firewall model as one nftables JSON transaction.
+/// When replacing an existing owned table, delete it before adding the new
+/// objects so nftables applies the replacement atomically.
+pub(super) fn build_nftables_batch(
+    plan: &RoutingPlan,
+    replace_owned: bool,
+) -> Result<Value, LinuxError> {
+    let ruleset = plan.firewall_ruleset().map_err(|error| LinuxError::Command {
+        program: "nft JSON batch".into(),
+        status: "invalid firewall model".into(),
+        stderr: error.to_string(),
+    })?;
+    let mut batch = ruleset.to_json_value().map_err(|error| LinuxError::Command {
+        program: "nft JSON batch".into(),
+        status: "serialization failed".into(),
+        stderr: error.to_string(),
+    })?;
+
+    let objects = batch
+        .get_mut("nftables")
+        .and_then(Value::as_array_mut)
+        .ok_or_else(|| LinuxError::Command {
+            program: "nft JSON batch".into(),
+            status: "invalid serialized ruleset".into(),
+            stderr: "serialized ruleset has no nftables object array".into(),
+        })?;
+
+    if replace_owned {
+        objects.insert(
+            0,
+            serde_json::json!({
+                "delete": {
+                    "table": {
+                        "family": plan.nft_family,
+                        "name": plan.nft_table,
+                    }
+                }
+            }),
+        );
+    }
+
+    Ok(batch)
+}
+
 /// Return true only when the nftables table object itself carries our ownership marker.
 pub(super) fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
     let Ok(document) = serde_json::from_str::<Value>(json) else {
