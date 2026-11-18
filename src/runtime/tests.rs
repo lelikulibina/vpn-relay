@@ -1373,7 +1373,12 @@ fn peer_public_keys_are_serialized_as_standard_base64() {
     assert_eq!(encoded.len(), 44);
     assert!(encoded.ends_with('='));
     use base64::Engine as _;
-    assert_eq!(base64::engine::general_purpose::STANDARD.decode(encoded).unwrap(), key);
+    assert_eq!(
+        base64::engine::general_purpose::STANDARD
+            .decode(encoded)
+            .unwrap(),
+        key
+    );
 }
 
 #[test]

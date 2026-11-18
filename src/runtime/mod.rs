@@ -8,8 +8,6 @@ use crate::backend::{
     BackendError, BackendRegistry, PreparedInterface, TunnelHandle, TunnelSnapshot,
 };
 use crate::config::{Config, PeerConfig};
-use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
-use base64::Engine as _;
 #[cfg(test)]
 use crate::control::unix::ControlSocket;
 use crate::control::unix::{UnixClient, UnixTransport};
@@ -19,6 +17,8 @@ use crate::control::{ControlRequest, ControlResponse};
 pub use crate::control::{InterfaceStats, PeerStats};
 use crate::linux::{self, LinuxError, NftApplier, SystemNftApplier};
 use crate::routing::RoutingPlan;
+use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
+use base64::Engine as _;
 use forwarding::*;
 use lock::InstanceLock;
 use reload::*;

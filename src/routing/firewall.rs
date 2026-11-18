@@ -243,7 +243,10 @@ fn host_allow(
                     field: if input { "saddr" } else { "daddr" }.into(),
                 },
                 FirewallValue::Set(
-                    prefixes.iter().map(|s| FirewallValue::String(s.clone())).collect(),
+                    prefixes
+                        .iter()
+                        .map(|s| FirewallValue::String(s.clone()))
+                        .collect(),
                 ),
             ));
         }
@@ -265,7 +268,10 @@ fn host_allow(
                 field: "dport".into(),
             },
             FirewallValue::Set(
-                ports.iter().map(|p| FirewallValue::Number(*p as u32)).collect(),
+                ports
+                    .iter()
+                    .map(|p| FirewallValue::Number(*p as u32))
+                    .collect(),
             ),
         ));
     }
@@ -784,7 +790,7 @@ impl FirewallRuleset {
                 FirewallValue::Number(value) => json!(value),
                 FirewallValue::State(values) => json!({ "set": values }),
                 FirewallValue::Set(values) => {
-                    json!({ "set": values.iter().map(value).collect::<Vec<_>>() })
+                    json!({ "set": values.iter().map(|item| value(item)).collect::<Vec<_>>() })
                 }
             }
         }

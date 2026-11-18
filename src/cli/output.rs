@@ -21,12 +21,18 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
 
     for interface in interfaces {
         let peer_count = interface.peers.len();
-        let recent = interface.peers.iter()
+        let recent = interface
+            .peers
+            .iter()
             .filter(|peer| is_recent_handshake(peer.handshake_age_secs))
             .count();
-        let rx = interface.peers.iter()
+        let rx = interface
+            .peers
+            .iter()
             .fold(0u64, |sum, peer| sum.saturating_add(peer.rx_bytes));
-        let tx = interface.peers.iter()
+        let tx = interface
+            .peers
+            .iter()
             .fold(0u64, |sum, peer| sum.saturating_add(peer.tx_bytes));
 
         println!(
@@ -41,8 +47,13 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
 
         println!(
             "  {:<22}  {:<25}  {:<21}  {:>10}  {:>10}  {:>14}  {:<9}",
-            "Публичный ключ (Base64)", "IP клиента", "Endpoint",
-            "RX", "TX", "Handshake", "Состояние"
+            "Публичный ключ (Base64)",
+            "IP клиента",
+            "Endpoint",
+            "RX",
+            "TX",
+            "Handshake",
+            "Состояние"
         );
         println!("  {}", "-".repeat(125));
 
@@ -52,7 +63,8 @@ pub(super) fn print_stats(interfaces: &[InterfaceStats]) {
             } else {
                 peer.client_ips.join(", ")
             };
-            let endpoint = peer.endpoint
+            let endpoint = peer
+                .endpoint
                 .map(|value| value.to_string())
                 .unwrap_or_else(|| "-".to_owned());
             println!(
@@ -101,7 +113,12 @@ fn truncate(value: &str, max_chars: usize) -> String {
     if chars.len() <= max_chars {
         return value.to_owned();
     }
-    format!("{}…", chars[..max_chars.saturating_sub(1)].iter().collect::<String>())
+    format!(
+        "{}…",
+        chars[..max_chars.saturating_sub(1)]
+            .iter()
+            .collect::<String>()
+    )
 }
 
 #[cfg(target_os = "linux")]
