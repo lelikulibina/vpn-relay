@@ -1,6 +1,6 @@
 use super::nft::{
-    apply_nft_with, inspect_nft_table_with, is_missing_table_error, map_nftables_error,
-    remove_nft_with, table_is_owned, table_is_owned_text,
+    apply_nft_with, build_nftables_batch, inspect_nft_table_with, is_missing_table_error,
+    map_nftables_error, remove_nft_with, table_is_owned, table_is_owned_text,
 };
 use super::*;
 use crate::routing::RoutingPlan;
@@ -1268,4 +1268,66 @@ fn recognizes_owned_default_routes_and_kernel_metadata() {
         "default dev awg-primary proto 242 mtu 1400",
         "awg-primary"
     ));
+}
+
+
+#[test]
+fn nft_json_batch_builder_creates_missing_table_without_delete() {
+    let plan = cleanup_test_plan();
+    let batch = build_nftables_batch(&plan, false).unwrap();
+    let objects = batch["nftables"].as_array().unwrap();
+
+    assert!(objects[0].get("delete").is_none());
+    assert_eq!(
+        objects[0]["add"]["table"]["comment"],
+        "managed by vpn-relay"
+    );
+    assert_eq!(objects[0]["add"]["table"]["family"], "inet");
+    assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
+    assert!(objects.iter().all(|object| object.get("delete").is_none()));
+}
+
+#[test]
+fn nft_json_batch_builder_deletes_owned_table_before_recreating_it() {
+    let plan = cleanup_test_plan();
+    let batch = build_nftables_batch(&plan, true).unwrap();
+    let objects = batch["nftables"].as_array().unwrap();
+
+    assert_eq!(
+        objects[0]["delete"]["table"],
+        serde_json::json!({"family": "inet", "name": "vpn_relay"})
+    );
+    assert_eq!(
+        objects[1]["add"]["table"]["comment"],
+        "managed by vpn-relay"
+    );
+    assert_eq!(objects[1]["add"]["table"]["family"], "inet");
+    assert_eq!(objects[1]["add"]["table"]["name"], "vpn_relay");
+    assert_eq!(
+        objects
+            .iter()
+            .filter(|object| object.get("delete").is_some())
+            .count(),
+        1,
+        "owned-table replacement must have exactly one delete in the batch"
+    );
+}
+
+#[test]
+fn nft_json_batch_builder_preserves_iface_index_compatibility_field() {
+    let mut plan = cleanup_test_plan();
+    plan.interface_indices = Some(
+        [("wg0".to_owned(), 11), ("awg0".to_owned(), 12)]
+            .into_iter()
+            .collect(),
+    );
+    let batch = build_nftables_batch(&plan, false).unwrap();
+    let objects = batch["nftables"].as_array().unwrap();
+    let managed_set = objects
+        .iter()
+        .find_map(|object| object.get("add").and_then(|add| add.get("set")))
+        .unwrap();
+
+    assert_eq!(managed_set["type"], "iface_index");
+    assert_eq!(managed_set["elem"], serde_json::json!([11, 12]));
 }
