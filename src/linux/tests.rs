@@ -1195,11 +1195,7 @@ fn nft_ownership_accepts_legacy_table_comment_and_exact_json_marker() {
     assert!(!table_is_owned(marked, "inet", "other"));
 
     let nested_or_unbound_rule = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"foreign","expr":[{"counter":null}],"comment":"managed by vpn-relay"}}]}"#;
-    assert!(!table_is_owned(
-        nested_or_unbound_rule,
-        "inet",
-        "vpn_relay"
-    ));
+    assert!(!table_is_owned(nested_or_unbound_rule, "inet", "vpn_relay"));
 
     let missing_counter = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"chain":{"family":"inet","table":"vpn_relay","name":"vpn_relay_owner"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"vpn_relay_owner","expr":[{"drop":null}],"comment":"managed by vpn-relay"}}]}"#;
     assert!(!table_is_owned(missing_counter, "inet", "vpn_relay"));
