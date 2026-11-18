@@ -121,7 +121,6 @@ pub(crate) enum FirewallExpression {
         left: Box<FirewallExpression>,
         right: Box<FirewallExpression>,
     },
-    Set(Vec<FirewallValue>),
     InSet {
         expression: Box<FirewallExpression>,
         set: String,

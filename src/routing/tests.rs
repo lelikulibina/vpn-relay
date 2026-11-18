@@ -563,10 +563,10 @@ fn firewall_model_preserves_selector_free_routing_decision() {
         } if matches!(left.as_ref(), FirewallExpression::Ct(FirewallCtKey::State))
             && state == "new"
     )));
-    assert!(!rule.expressions.iter().any(|expression| matches!(
-        expression,
-        FirewallExpression::Payload { .. }
-    )));
+    assert!(!rule
+        .expressions
+        .iter()
+        .any(|expression| matches!(expression, FirewallExpression::Payload { .. })));
 }
 
 #[test]

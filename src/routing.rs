@@ -4,9 +4,7 @@
 //! validated TOML configuration into deterministic nftables and policy-routing
 //! operations; the runtime layer can apply these operations transactionally.
 
-use crate::config::{
-    Config, FirewallProtocol, FirewallRule as ConfigFirewallRule, NatMode,
-};
+use crate::config::{Config, FirewallProtocol, FirewallRule as ConfigFirewallRule, NatMode};
 use std::collections::BTreeMap;
 
 pub(crate) const FIRST_ROUTING_TABLE: u32 = 10_000;
@@ -35,7 +33,6 @@ pub struct RoutingDecision {
     pub nat: NatMode,
     pub nat_to: Option<std::net::Ipv4Addr>,
 }
-
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NftFirewallRule {
