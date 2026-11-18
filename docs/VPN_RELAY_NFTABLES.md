@@ -292,13 +292,13 @@ Shutdown/recovery восстанавливают их только при сов
 daemon-written value. Старые или неподдерживаемые версии journal отклоняются
 до десериализации состояния и остаются на диске для ручной диагностики.
 
-## Типизированная модель nftables (этап R3.2)
+## Типизированная модель и parity nftables (этапы R3.2–R3.3)
 
 `src/routing/firewall.rs` содержит backend-neutral ordered AST: sets, base chains, rules, expressions и actions. Модель строится из `RoutingPlan`; numeric-ifindex режим требует полного взаимно-однозначного отображения всех managed interfaces и сохраняет обе стороны identity mismatch guards. Порядок правил, conntrack decision IDs и NAT pairing остаются частью модели.
 
 Adapter закреплён на `nftables = 0.6.3`. Поддерживаемая часть проходит через upstream schema. В schema 0.6.3 отсутствуют table-level `comment` и тип set `iface_index`; эти два поля сохраняются узким JSON compatibility path. Для name-based модели `to_nftables()` дополнительно проверяет каждый объект десериализацией через тип `NfObject` крейта. Для numeric-ifindex модели используется `to_json_value()`, поскольку upstream schema не может выразить `iface_index`.
 
-**Это пока не production backend.** `SystemNftApplier` продолжает применять legacy `RoutingPlan::nft_script()`. Typed adapter нельзя включать до R3.3: сравнения нормализованных rulesets, фактически применённых в отдельных network namespaces для bootstrap, numeric-ifindex, multi-uplink, NAT none/masquerade/SNAT и INPUT/OUTPUT. Проверка ownership по R3.4 остаётся отдельным обязательным gate.
+**Parity R3.3 пройден, но это пока не production backend.** Интеграционный тест применяет legacy и typed rulesets в отдельных network namespaces и сравнивает нормализованный результат ядра. Пройдены bootstrap, name-based multi-uplink с NAT none/masquerade/SNAT и INPUT/OUTPUT firewall, а также numeric-ifindex multi-uplink/NAT/firewall. Полный CI run `44378855146` на HEAD `1c66d497b1df251b19c00576dfcef465e93c13de` завершился success 9/9. `SystemNftApplier` всё ещё применяет legacy `RoutingPlan::nft_script()`: перед переключением необходимо завершить отдельный R3.4 ownership audit, после чего R3.5 может выполнять production switch и удаление legacy generator.
 
 ## Проверки и ограничения
 

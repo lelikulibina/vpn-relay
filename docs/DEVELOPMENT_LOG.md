@@ -1,5 +1,15 @@
 # Журнал разработки vpn-relay
 
+## 2026-11-18 — R3.3 typed/legacy nftables parity
+
+- **База:** ветка `refactor/modular-control-api-nftables`, итоговый HEAD `1c66d497b1df251b19c00576dfcef465e93c13de`.
+- **Parity harness:** добавлен `typed_firewall_matches_legacy_kernel_rulesets`: legacy script и typed JSON применяются в отдельных network namespaces; сравнивается нормализованный вывод `nft -j list table inet vpn_relay`. Нормализация убирает только runtime поля (handles, indices, counters) и порядок объектов таблицы/set/chain; порядок правил внутри каждой цепочки сохраняется.
+- **Покрытие:** bootstrap; name-based multi-uplink с NAT none/masquerade/SNAT и INPUT/OUTPUT CIDR/ports; numeric-ifindex multi-uplink с NAT/firewall. Все три сценария прошли.
+- **Исправления по parity:** `ct state` использует оператор `in` и legacy-совместимую форму массива; IPv4 CIDR сериализуются nftables prefix objects в обоих путях (routing decisions и INPUT/OUTPUT); forward identity guards генерируются в legacy-порядке, по каждому интерфейсу.
+- **Статистика CLI:** сводка дополнена числом пиров, свежими handshake, RX/TX по интерфейсу и суммарно, endpoint, client IP и возрастом handshake. Public key отображается в стандартном Base64, сокращённом по центру. Control API wire format сохранён: его поле ключа остаётся в прежнем hex-формате, преобразование выполняется только при CLI-выводе. Обновлён peer-traffic shell assertion.
+- **CI:** run `44378855146`, HEAD `1c66d497b1df251b19c00576dfcef465e93c13de`, результат `success`, все 9/9 jobs: quality, обе kernel compatibility jobs, network core, WG, AWG 3, AWG 3.1, multi-uplink и Podman.
+- **Граница этапа:** R3.3 закрыт. `SystemNftApplier` продолжает применять legacy `RoutingPlan::nft_script()`. R3.4 ownership audit и R3.5 production switch остаются обязательными и не считаются выполненными.
+
 ## 2026-11-18 — R3.2 typed firewall model
 
 - **База:** ветка `refactor/modular-control-api-nftables`, HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`.
@@ -7,7 +17,7 @@
 - **Adapter:** закреплён `nftables = 0.6.3`. Name-based объекты проверяются upstream schema; `to_json_value()` сохраняет два отсутствующих в schema полей — table-level ownership `comment` и set type `iface_index`. Для numeric-ifindex модели upstream schema 0.6.3 недостаточна, поэтому применяется compatibility JSON serializer.
 - **Тесты:** покрыты identity/order/bootstrap, typed expressions, CIDR/port set encoding, schema object ordering, compatibility fields и отклонение некорректной карты интерфейсов.
 - **CI:** run `44296492893`, HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`, результат `success`, все 9/9 jobs: quality, обе kernel compatibility jobs, network core, WG, AWG 3, AWG 3.1, multi-uplink и Podman.
-- **Граница этапа:** production `SystemNftApplier` по-прежнему применяет `RoutingPlan::nft_script()`. R3.2 не является переходом production на typed adapter. R3.3 parity, R3.4 ownership и R3.5 switch не выполнены и остаются обязательными следующими этапами.
+- **Граница этапа:** production `SystemNftApplier` по-прежнему применяет `RoutingPlan::nft_script()`. R3.2 не являлся переходом production на typed adapter. R3.3 parity завершён отдельным этапом (см. запись выше); R3.4 ownership и R3.5 switch остаются обязательными следующими этапами.
 
 
 Журнал содержит только проверенные состояния ветки и результаты выполненных проверок. Архитектурные этапы считаются завершёнными по фактическому коду и критериям `docs/ROADMAP.md`, а не по прежним записям.

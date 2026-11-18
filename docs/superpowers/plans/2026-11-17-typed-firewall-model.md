@@ -98,9 +98,17 @@
 
 ## Проверка перед следующим этапом
 
-R3.2 считается завершённым только после успешного полного CI на HEAD последнего commit. R3.3 должен сравнить нормализованные rulesets в отдельных netns для bootstrap, numeric-ifindex, multi-uplink, NAT none/masquerade/SNAT и INPUT/OUTPUT. До этого production продолжает применять `RoutingPlan::nft_script()`.
+R3.2 считается завершённым после успешного полного CI на HEAD реализации и документации. Следующий gate R3.3 — сравнить нормализованные rulesets в отдельных netns для bootstrap, numeric-ifindex, multi-uplink, NAT none/masquerade/SNAT и INPUT/OUTPUT. До успешного parity production продолжает применять `RoutingPlan::nft_script()`.
 
 
 ## Результат выполнения
 
-R3.2 завершён на HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`. Полный CI run `44296492893` завершился success: 9/9 jobs. Production backend не переключался. Следующий отдельный этап — R3.3 parity в отдельных netns; R3.4 ownership и R3.5 переключение остаются обязательными и не считаются выполненными этим планом.
+R3.2 завершён на HEAD `9ec2dea866f60298d1c377e5df724dce2675d033`. Полный CI run `44296492893` завершился success: 9/9 jobs. Production backend не переключался.
+
+## Результат R3.3 parity
+
+- Добавлен root-only kernel integration test, применяющий legacy и typed JSON rulesets в разных network namespaces и сравнивающий нормализованный `nft -j list table`.
+- Успешно пройдены bootstrap, name-based multi-uplink/NAT/firewall и numeric-ifindex multi-uplink/NAT/firewall.
+- В parity процессе исправлены conntrack state operator/representation, IPv4 prefix JSON и порядок numeric interface identity guards.
+- Полный CI run `44378855146`, HEAD `1c66d497b1df251b19c00576dfcef465e93c13de`: success 9/9 jobs.
+- Production backend остаётся на `RoutingPlan::nft_script()`. Следующий этап — R3.4 ownership audit; R3.5 production switch остаётся отдельным gate.
