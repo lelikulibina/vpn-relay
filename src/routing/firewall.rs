@@ -98,10 +98,7 @@ pub(crate) enum FirewallValue {
     Number(u32),
     State(Vec<String>),
     Set(Vec<FirewallValue>),
-    Prefix {
-        address: Ipv4Addr,
-        prefix_len: u8,
-    },
+    Prefix { address: Ipv4Addr, prefix_len: u8 },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum FirewallExpression {
@@ -257,9 +254,7 @@ fn host_allow(
                     protocol: "ip".into(),
                     field: if input { "saddr" } else { "daddr" }.into(),
                 },
-                FirewallValue::Set(
-                    prefixes.iter().map(|prefix| prefix_value(prefix)).collect(),
-                ),
+                FirewallValue::Set(prefixes.iter().map(|prefix| prefix_value(prefix)).collect()),
             ));
         }
     }
@@ -618,21 +613,21 @@ impl RoutingPlan {
                 inside(ct(FirewallCtKey::State), named("new")),
             ];
             if let Some(src) = &d.source {
-                expressions.push(FirewallExpression::Payload {
-                    protocol: "ip".into(),
-                    field: "saddr".into(),
-                });
-                expressions.push(FirewallExpression::Set(
-                    src.iter().map(|s| named(s)).collect(),
+                expressions.push(inside(
+                    FirewallExpression::Payload {
+                        protocol: "ip".into(),
+                        field: "saddr".into(),
+                    },
+                    FirewallValue::Set(src.iter().map(|prefix| prefix_value(prefix)).collect()),
                 ));
             }
             if let Some(dst) = &d.destination {
-                expressions.push(FirewallExpression::Payload {
-                    protocol: "ip".into(),
-                    field: "daddr".into(),
-                });
-                expressions.push(FirewallExpression::Set(
-                    dst.iter().map(|s| named(s)).collect(),
+                expressions.push(inside(
+                    FirewallExpression::Payload {
+                        protocol: "ip".into(),
+                        field: "daddr".into(),
+                    },
+                    FirewallValue::Set(dst.iter().map(|prefix| prefix_value(prefix)).collect()),
                 ));
             }
             prerouting.push(rule(

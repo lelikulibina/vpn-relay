@@ -1119,6 +1119,19 @@ fn firewall_model_serializes_typed_nftables_schema() {
             && expression["match"]["left"]["payload"]["field"] == "dport"
             && expression["match"]["right"]["set"] == serde_json::json!([22, 443])
     }));
+
+    let all_rules: Vec<_> = objects
+        .iter()
+        .filter_map(|object| object.get("add")?.get("rule"))
+        .collect();
+    assert!(all_rules.iter().any(|rule| {
+        rule["expr"].as_array().is_some_and(|items| items.iter().any(|expression| {
+            expression["match"]["left"]["payload"]["protocol"] == "ip"
+                && expression["match"]["right"]["set"].as_array().is_some_and(|values| {
+                    values.iter().any(|value| value["prefix"].is_object())
+                })
+        }))
+    }));
     assert!(expressions.iter().any(|expression| {
         expression["match"]["op"] == "in"
             && expression["match"]["left"]["ct"]["key"] == "state"
