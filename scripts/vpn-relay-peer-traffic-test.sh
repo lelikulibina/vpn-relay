@@ -874,7 +874,7 @@ path, side = sys.argv[1:]
 text = open(path, encoding="utf-8", errors="replace").read()
 rows = [
     line for line in text.splitlines()
-    if re.match(r"^[0-9a-f]{64}\s", line)
+    if re.match(r"^\s*[A-Za-z0-9+/]{10}…[A-Za-z0-9+/=]{8}\s", line)
 ]
 if not rows:
     raise SystemExit(f"{side}: statistics table contains no peer rows")

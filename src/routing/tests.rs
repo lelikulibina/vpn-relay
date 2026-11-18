@@ -1116,6 +1116,12 @@ fn firewall_model_serializes_typed_nftables_schema() {
             && expression["match"]["left"]["payload"]["field"] == "dport"
             && expression["match"]["right"]["set"] == serde_json::json!([22, 443])
     }));
+    assert!(expressions.iter().any(|expression| {
+        expression["match"]["op"] == "in"
+            && expression["match"]["left"]["ct"]["key"] == "state"
+            && expression["match"]["right"]
+                == serde_json::json!(["new", "established", "related"])
+    }));
 }
 
 #[test]

@@ -788,7 +788,7 @@ impl FirewallRuleset {
             match item {
                 FirewallValue::String(value) => json!(value),
                 FirewallValue::Number(value) => json!(value),
-                FirewallValue::State(values) => json!({ "set": values }),
+                FirewallValue::State(values) => json!(values),
                 FirewallValue::Set(values) => {
                     json!({ "set": values.iter().map(|item| value(item)).collect::<Vec<_>>() })
                 }
