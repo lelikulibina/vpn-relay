@@ -10,7 +10,7 @@
 | P0 | Переработка тестовой системы и CI | выполнен; baseline и все 9 CI jobs подтверждены |
 | R1 | Модульное деление крупных файлов без изменения поведения | выполнен; CLI, config, Linux, routing и runtime разделены; control protocol/transport вынесены в R2 |
 | R2 | Control API, независимый от транспорта; Unix socket как первый транспорт | выполнен; API/dispatch/transport разделены, Runtime API и legacy JSON wire format сохранены; typed error mapping, fatal-stop, socket ownership/lifecycle, права 0600, request/response limits, bounded serialization, timeouts и malformed/empty/truncated I/O покрыты тестами; полный CI 9/9 (run `43642057008`, HEAD `a9b9384`) |
-| R3 | Перенос nftables-логики на крейт `nftables` | выполняется; R3.0–R3.4 завершены (audit, `NftApplier`, fault injection, typed AST/adapter, kernel parity и ownership inspection); production script backend остаётся активным до отдельного R3.5 switch |
+| R3 | Перенос nftables-логики на крейт `nftables` | выполняется до документационного gate; R3.0–R3.5 implementation завершены, production использует typed JSON batch, legacy string generator удалён; implementation CI run `44411771480` — 9/9 success |
 | R4 | Дальнейшие улучшения (см. «Вне текущего рефакторинга») | идеи |
 
 Ветка рефакторинга: `refactor/modular-control-api-nftables` (от `daemon-improvements`).
@@ -184,7 +184,7 @@ config ◄── все слои (только типы и валидация)
 | `runtime.rs` | `runtime/mod.rs` (Runtime, start, run, Drop, signals, RuntimeError), `runtime/reload.rs`, `runtime/lock.rs`, `runtime/state.rs`, `runtime/forwarding.rs`, `runtime/tests.rs`; Control API и Unix transport вынесены в `control/` (R2) |
 | `linux.rs` | `linux/{mod,exec,nft,policy,link,netlink}.rs`, `linux/tests.rs` |
 | `config.rs` | `config/{mod,schema,validate,reload,parse}.rs`, `config/tests.rs` |
-| `routing.rs` | `routing/{mod,marks,nft_text}.rs`, `routing/tests.rs` |
+| `routing.rs` | `routing/{mod,marks,firewall,tests}.rs` |
 | `main.rs` | `cli/{mod,args,daemon,output}.rs`; `main.rs` остаётся точкой входа |
 
 Технические решения:
@@ -244,7 +244,7 @@ config ◄── все слои (только типы и валидация)
 - **R3.3 Эквивалентность — выполнен.** `typed_firewall_matches_legacy_kernel_rulesets` применяет legacy и typed JSON в отдельных netns, затем сравнивает нормализованные kernel rulesets. Совпали bootstrap, name-based multi-uplink с NAT none/masquerade/SNAT и INPUT/OUTPUT, а также numeric-ifindex multi-uplink/NAT/firewall. В ходе parity были устранены различия `ct state` (`in`), CIDR prefix encoding и порядок numeric identity guards. Полный CI run `44378855146` на HEAD `1c66d497b1df251b19c00576dfcef465e93c13de` завершился success 9/9. Production остаётся на `RoutingPlan::nft_script()` до R3.4 ownership и R3.5 switch.
 - **R3.4 Ownership — выполнен.** JSON inspection использует `nftables::helper::get_current_ruleset_raw`; ownership принимается только при точном совпадении family/name и table-level comment. Для nftables 1.0.2 (Ubuntu 22.04), где JSON не содержит table comment, используется проверенный текстовый fallback, который принимает только top-level marker и не учитывает комментарии chain/rule. Только ожидаемые `No such file or directory` / `does not exist` означают отсутствие таблицы; spawn, command, UTF-8 и JSON ошибки сохраняются как ошибки, а чужая таблица приводит к conflict. Characterization/unit tests и namespace regression на чужую таблицу прошли. Реализация HEAD `4f84688d01c4172a64e706abf7226b5d90b17b8d`, полный CI run `44397837114` — success 9/9. Production backend намеренно остаётся на `RoutingPlan::nft_script()` до отдельного R3.5.
 - **R3.5 Переключение и удаление.** Крейт становится единственной реализацией; `nft_text.rs`, `String::replace`-подстановки индексов и дублирующий разбор вывода удаляются. Shim-ы в `scripts/vpn-relay-netns-test.sh` (строки с `$1 = delete`, `$1 = -f`) переписываются под JSON-batch через stdin и новые аргументы вызова.
-- **R3.6 Документация.** Обновить `docs/VPN_RELAY_NFTABLES.md` (разделы «Владение ресурсами» и «Проверки»), `AGENTS.md`, README и CHANGELOG.
+- **R3.6 Документация — в этом коммите.** Обновлены `docs/ROADMAP.md`, `AGENTS.md`, `docs/DEVELOPMENT_LOG.md`, `docs/VPN_RELAY_NFTABLES.md` и план/спецификация R3.5. README/CHANGELOG не меняют публичные команды или релизную семантику и не требуют записи для внутреннего backend refactor.
 
 Риски и контроль:
 

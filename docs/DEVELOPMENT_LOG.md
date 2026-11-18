@@ -1,3 +1,11 @@
+## 2026-11-19 — R3.5 production nftables JSON switch и удаление legacy generator
+
+- **Production path:** `SystemNftApplier::apply/remove` использует typed `RoutingPlan::firewall_ruleset()` и `nftables 0.6.3` raw JSON helper API. Owned replacement формируется одним JSON batch с delete object первым и полным typed ruleset далее; missing-table apply отправляет только create batch. Remove остаётся ownership-gated.
+- **Безопасность и совместимость:** ownership inspection выполняется до mutation; exact family/name/table-level comment обязателен. Для nftables 1.0.2 сохранён top-level-only text fallback. `table.comment` и `iface_index` остаются в узком JSON compatibility serializer. Ошибки model/helper fail closed и отображаются в существующий `LinuxError`.
+- **Parity и тесты:** production kernel parity/lifecycle сценарии прошли; сохранены semantic assertions typed model, JSON batch ordering, helper failure injection, foreign-table protection, atomic replacement, ownership fallback и namespace tests. Legacy string generator, `nft_text.rs`, string-only tests и старые shim branches удалены.
+- **Проверка:** commit `7df7139aedffc05e327f23a4732f9799ce5c71d6`; GitHub Actions run `44411771480` — **9/9 jobs success**, включая quality, Ubuntu 22.04/24.04 kernel compatibility, network core, WireGuard, AmneziaWG 3/3.1, multi-uplink и rootful Podman.
+- **Граница:** implementation R3.5 закрыт. Этот документационный commit синхронизирует roadmap, архитектурную карту, nftables reference и execution plan; после него требуется отдельный полный CI gate.
+
 # Журнал разработки vpn-relay
 
 ## 2026-11-18 — R3.4 nftables ownership inspection
