@@ -446,7 +446,7 @@ impl RoutingPlan {
                 } else {
                     key
                 };
-                let mut expressions = vec![
+                let expressions = vec![
                     FirewallExpression::InSet {
                         expression: Box::new(meta(selector_key)),
                         set: "ipv6_drop_interfaces".into(),
@@ -768,8 +768,8 @@ impl FirewallRuleset {
             }
         }
 
-        fn expression(expression: &FirewallExpression) -> Value {
-            match expression {
+        fn expression(node: &FirewallExpression) -> Value {
+            match node {
                 FirewallExpression::Meta(key) => json!({"meta": {"key": match key {
                     FirewallMetaKey::IifName => "iifname",
                     FirewallMetaKey::OifName => "oifname",
