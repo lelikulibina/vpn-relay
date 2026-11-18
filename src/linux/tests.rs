@@ -1270,7 +1270,6 @@ fn recognizes_owned_default_routes_and_kernel_metadata() {
     ));
 }
 
-
 #[test]
 fn nft_json_batch_builder_creates_missing_table_without_delete() {
     let plan = cleanup_test_plan();
