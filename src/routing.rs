@@ -5,7 +5,7 @@
 //! operations; the runtime layer can apply these operations transactionally.
 
 use crate::config::{
-    Config, FirewallProtocol, FirewallRule as ConfigFirewallRule, NatAction, NatMode,
+    Config, FirewallProtocol, FirewallRule as ConfigFirewallRule, NatMode,
 };
 use std::collections::BTreeMap;
 
@@ -36,19 +36,6 @@ pub struct RoutingDecision {
     pub nat_to: Option<std::net::Ipv4Addr>,
 }
 
-impl RoutingDecision {
-    /// Resolve persisted routing-decision fields into one exhaustive NAT action.
-    fn nat_action(&self) -> NatAction {
-        match self.nat {
-            NatMode::None => NatAction::None,
-            NatMode::Masquerade => NatAction::Masquerade,
-            NatMode::Snat => NatAction::Snat(
-                self.nat_to
-                    .expect("validated SNAT routing decision must contain nat_to"),
-            ),
-        }
-    }
-}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct NftFirewallRule {
@@ -80,6 +67,7 @@ pub struct RoutingPlan {
 
 mod firewall;
 mod marks;
+#[cfg(test)]
 pub(crate) use firewall::{
     FirewallAction, FirewallChain, FirewallCompareOperator, FirewallCtKey, FirewallExpression,
     FirewallMangleKey, FirewallMetaKey, FirewallModelError, FirewallRule, FirewallRuleset,

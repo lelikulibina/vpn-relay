@@ -2,11 +2,7 @@
 use super::LinuxError;
 use crate::routing::RoutingPlan;
 use serde_json::Value;
-#[cfg(test)]
-use std::io::Write;
 use std::process::Command;
-#[cfg(test)]
-use std::process::Stdio;
 
 /// Serialize the typed firewall model as one nftables JSON transaction.
 /// When replacing an existing owned table, delete it before adding the new
@@ -371,96 +367,6 @@ pub fn apply_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     SystemNftApplier.apply(plan)
 }
 
-#[cfg(test)]
-pub(super) fn apply_nft_with<I, R>(
-    plan: &RoutingPlan,
-    inspect_table: &mut I,
-    run_script: &mut R,
-) -> Result<(), LinuxError>
-where
-    I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
-    R: FnMut(&str) -> Result<(), LinuxError>,
-{
-    let mut script = String::new();
-    if inspect_table(plan)? {
-        script.push_str(&format!(
-            "delete table {} {}\n",
-            plan.nft_family, plan.nft_table
-        ));
-    }
-    script.push_str(&plan.nft_script());
-    run_script(&script)
-}
-
-/// Submit one complete nftables batch. nft applies a batch transactionally:
-/// a rejected batch leaves the previous table intact.
-#[cfg(test)]
-fn run_nft_script(script: &str) -> Result<(), LinuxError> {
-    let mut child = Command::new("nft")
-        .args(["-f", "-"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|source| LinuxError::Spawn {
-            program: "nft".into(),
-            source,
-        })?;
-    let write_result = child
-        .stdin
-        .take()
-        .expect("piped stdin")
-        .write_all(script.as_bytes());
-    if let Err(source) = write_result {
-        // Closing stdin lets nft observe EOF. Always reap the child even when
-        // the pipe breaks, otherwise a failed policy update can leave an
-        // unreaped subprocess behind.
-        let _ = child.wait_with_output();
-        return Err(LinuxError::Spawn {
-            program: "nft stdin".into(),
-            source,
-        });
-    }
-    let output = child
-        .wait_with_output()
-        .map_err(|source| LinuxError::Spawn {
-            program: "nft".into(),
-            source,
-        })?;
-    if output.status.success() {
-        return Ok(());
-    }
-    Err(LinuxError::Command {
-        program: "nft -f -".into(),
-        status: output.status.to_string(),
-        stderr: String::from_utf8_lossy(&output.stderr).trim().into(),
-    })
-}
-
 pub fn remove_nft(plan: &RoutingPlan) -> Result<(), LinuxError> {
     SystemNftApplier.remove(plan)
-}
-
-#[cfg(test)]
-pub(super) fn remove_nft_with<I, R>(
-    plan: &RoutingPlan,
-    inspect_table: &mut I,
-    run_command: &mut R,
-) -> Result<(), LinuxError>
-where
-    I: FnMut(&RoutingPlan) -> Result<bool, LinuxError>,
-    R: FnMut(&str, &[String]) -> Result<(), LinuxError>,
-{
-    if !inspect_table(plan)? {
-        return Ok(());
-    }
-    run_command(
-        "nft",
-        &[
-            "delete".into(),
-            "table".into(),
-            plan.nft_family.clone(),
-            plan.nft_table.clone(),
-        ],
-    )
 }

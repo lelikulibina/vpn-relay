@@ -447,6 +447,129 @@ fn firewall_model_preserves_table_chain_and_set_identity() {
 }
 
 #[test]
+fn firewall_model_preserves_icmp_l4_protocol_selectors() {
+    let mut config = sample_config();
+    config.firewall.input.rules.push(ConfigFirewallRule {
+        interface: "wg-server".to_owned(),
+        source: Some(vec!["10.0.0.2/32".to_owned()]),
+        destination: None,
+        protocol: Some(FirewallProtocol::Icmp),
+        ports: None,
+    });
+    config.firewall.output.rules.push(ConfigFirewallRule {
+        interface: "awg-primary".to_owned(),
+        source: None,
+        destination: Some(vec!["203.0.113.1/32".to_owned()]),
+        protocol: Some(FirewallProtocol::Icmp),
+        ports: None,
+    });
+
+    let model = RoutingPlan::from_config(&config)
+        .firewall_ruleset()
+        .unwrap();
+    for (chain_name, field) in [("input", "saddr"), ("output", "daddr")] {
+        let chain = model
+            .chains
+            .iter()
+            .find(|chain| chain.name == chain_name)
+            .unwrap();
+        assert!(chain.rules.iter().any(|rule| {
+            rule.actions
+                == [
+                    FirewallAction::Mangle {
+                        key: FirewallMangleKey::ConntrackMark,
+                        value: FirewallExpression::BitwiseOr {
+                            left: Box::new(FirewallExpression::BitwiseAnd {
+                                expression: Box::new(FirewallExpression::Ct(FirewallCtKey::Mark)),
+                                mask: 0x0000_ffff,
+                            }),
+                            right: Box::new(FirewallExpression::Number(0x8000_0000)),
+                        },
+                    },
+                    FirewallAction::Accept,
+                ]
+                && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::Equal,
+                        right: FirewallValue::String(protocol),
+                    } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::L4Proto))
+                        && protocol == "icmp"
+                ))
+                && rule.expressions.iter().any(|expression| matches!(
+                    expression,
+                    FirewallExpression::Compare {
+                        left,
+                        operator: FirewallCompareOperator::In,
+                        ..
+                    } if matches!(left.as_ref(), FirewallExpression::Payload { protocol, field: actual }
+                        if protocol == "ip" && actual == field)
+                ))
+        }), "{chain_name} ICMP rule must retain its protocol and IPv4 selector");
+    }
+}
+
+#[test]
+fn firewall_model_preserves_selector_free_routing_decision() {
+    let mut config = sample_config();
+    config.routing.rules.truncate(1);
+    config.routing.rules[0].source = None;
+    config.routing.rules[0].destination = None;
+
+    let plan = RoutingPlan::from_config(&config);
+    let decision = &plan.decisions[0];
+    let model = plan.firewall_ruleset().unwrap();
+    let prerouting = model
+        .chains
+        .iter()
+        .find(|chain| chain.name == "prerouting")
+        .unwrap();
+    let rule = prerouting
+        .rules
+        .iter()
+        .find(|rule| {
+            matches!(
+                rule.actions.as_slice(),
+                [
+                    FirewallAction::Mangle {
+                        key: FirewallMangleKey::MetaMark,
+                        ..
+                    },
+                    FirewallAction::Mangle {
+                        key: FirewallMangleKey::ConntrackMark,
+                        value: FirewallExpression::BitwiseOr { right, .. },
+                    },
+                    FirewallAction::Return,
+                ] if matches!(right.as_ref(), FirewallExpression::Number(mark) if *mark == decision.conntrack_mark)
+            )
+        })
+        .expect("selector-free decision rule");
+    assert!(rule.expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Compare {
+            left,
+            operator: FirewallCompareOperator::Equal,
+            right: FirewallValue::String(interface),
+        } if matches!(left.as_ref(), FirewallExpression::Meta(FirewallMetaKey::IifName))
+            && interface == &decision.ingress
+    )));
+    assert!(rule.expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Compare {
+            left,
+            operator: FirewallCompareOperator::In,
+            right: FirewallValue::String(state),
+        } if matches!(left.as_ref(), FirewallExpression::Ct(FirewallCtKey::State))
+            && state == "new"
+    )));
+    assert!(!rule.expressions.iter().any(|expression| matches!(
+        expression,
+        FirewallExpression::Payload { .. }
+    )));
+}
+
+#[test]
 fn firewall_model_rejects_incomplete_interface_index_map() {
     let mut plan = RoutingPlan::from_config(&sample_config());
 

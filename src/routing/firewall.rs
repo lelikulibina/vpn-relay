@@ -97,7 +97,6 @@ pub(crate) enum FirewallValue {
     String(String),
     Number(u32),
     State(Vec<String>),
-    Set(Vec<FirewallValue>),
     Prefix { address: Ipv4Addr, prefix_len: u8 },
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -763,6 +762,7 @@ impl FirewallRuleset {
     /// The upstream schema cannot represent table comments or iface_index sets.
     /// Those values are retained by to_json_value; numeric sets are rejected
     /// rather than silently misrepresented as interface-name sets.
+    #[cfg(test)]
     pub(crate) fn to_nftables(&self) -> Result<nftables::schema::Nftables<'static>, String> {
         if self
             .sets
@@ -858,9 +858,6 @@ impl FirewallRuleset {
                 FirewallExpression::BitwiseOr { left, right } => {
                     json!({"|": [expression(left), expression(right)]})
                 }
-                FirewallExpression::Set(values) => {
-                    json!({"set": values.iter().map(value).collect::<Vec<_>>()})
-                }
                 FirewallExpression::InSet {
                     expression: inner,
                     set,
@@ -945,30 +942,8 @@ impl FirewallRuleset {
 
         for chain in &self.chains {
             for rule in &chain.rules {
-                let mut statements =
-                    Vec::with_capacity(rule.expressions.len() + rule.actions.len());
-                let mut index = 0;
-                while index < rule.expressions.len() {
-                    if matches!(
-                        (&rule.expressions[index], rule.expressions.get(index + 1)),
-                        (
-                            FirewallExpression::Payload { .. },
-                            Some(FirewallExpression::Set(_))
-                        )
-                    ) {
-                        statements.push(json!({
-                            "match": {
-                                "op": "in",
-                                "left": expression(&rule.expressions[index]),
-                                "right": expression(&rule.expressions[index + 1]),
-                            }
-                        }));
-                        index += 2;
-                    } else {
-                        statements.push(expression(&rule.expressions[index]));
-                        index += 1;
-                    }
-                }
+                let mut statements: Vec<_> =
+                    rule.expressions.iter().map(expression).collect();
                 statements.extend(rule.actions.iter().map(action));
                 objects.push(json!({"add": {"rule": {
                     "family": self.family,
