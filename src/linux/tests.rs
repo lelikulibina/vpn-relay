@@ -1185,13 +1185,24 @@ fn inspect_nft_table_returns_false_only_for_missing_table() {
 }
 
 #[test]
-fn nft_ownership_requires_table_level_comment_and_exact_identity() {
-    let owned = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
-    assert!(table_is_owned(owned, "inet", "vpn_relay"));
-    assert!(!table_is_owned(owned, "ip", "vpn_relay"));
-    assert!(!table_is_owned(owned, "inet", "other"));
-    let rule_comment = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
-    assert!(!table_is_owned(rule_comment, "inet", "vpn_relay"));
+fn nft_ownership_accepts_legacy_table_comment_and_exact_json_marker() {
+    let legacy = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay","comment":"managed by vpn-relay"}}]}"#;
+    assert!(table_is_owned(legacy, "inet", "vpn_relay"));
+
+    let marked = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"chain":{"family":"inet","table":"vpn_relay","name":"vpn_relay_owner"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"vpn_relay_owner","expr":[{"counter":null}],"comment":"managed by vpn-relay"}}]}"#;
+    assert!(table_is_owned(marked, "inet", "vpn_relay"));
+    assert!(!table_is_owned(marked, "ip", "vpn_relay"));
+    assert!(!table_is_owned(marked, "inet", "other"));
+
+    let nested_or_unbound_rule = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"foreign","expr":[{"counter":null}],"comment":"managed by vpn-relay"}}]}"#;
+    assert!(!table_is_owned(
+        nested_or_unbound_rule,
+        "inet",
+        "vpn_relay"
+    ));
+
+    let missing_counter = r#"{"nftables":[{"table":{"family":"inet","name":"vpn_relay"}},{"chain":{"family":"inet","table":"vpn_relay","name":"vpn_relay_owner"}},{"rule":{"family":"inet","table":"vpn_relay","chain":"vpn_relay_owner","expr":[{"drop":null}],"comment":"managed by vpn-relay"}}]}"#;
+    assert!(!table_is_owned(missing_counter, "inet", "vpn_relay"));
     assert!(!table_is_owned("not json", "inet", "vpn_relay"));
 }
 
@@ -1281,13 +1292,20 @@ fn nft_json_apply_submits_typed_batch_once_and_preserves_owned_replacement() {
     })
     .unwrap();
 
-    assert_eq!(submissions.len(), 1, "one JSON transaction must be submitted");
+    assert_eq!(
+        submissions.len(),
+        1,
+        "one JSON transaction must be submitted"
+    );
     let objects = submissions[0]["nftables"].as_array().unwrap();
     assert_eq!(
         objects[0]["delete"]["table"],
         serde_json::json!({"family": "inet", "name": "vpn_relay"})
     );
-    assert_eq!(objects[1]["add"]["table"]["comment"], "managed by vpn-relay");
+    assert_eq!(
+        objects[1]["add"]["table"]["comment"],
+        "managed by vpn-relay"
+    );
 }
 
 #[test]
@@ -1296,10 +1314,12 @@ fn nft_json_apply_does_not_submit_when_ownership_inspection_fails() {
     let mut submissions = 0;
     let result = apply_nft_json_with(
         &plan,
-        &mut |_plan| Err(LinuxError::Conflict {
-            resource: "nft table inet vpn_relay".into(),
-            details: "unowned table".into(),
-        }),
+        &mut |_plan| {
+            Err(LinuxError::Conflict {
+                resource: "nft table inet vpn_relay".into(),
+                details: "unowned table".into(),
+            })
+        },
         &mut |_payload| {
             submissions += 1;
             Ok(())
@@ -1339,10 +1359,12 @@ fn nft_json_remove_does_not_submit_when_ownership_inspection_fails() {
     let mut submissions = 0;
     let result = remove_nft_json_with(
         &plan,
-        &mut |_plan| Err(LinuxError::Conflict {
-            resource: "nft table inet vpn_relay".into(),
-            details: "ownership unknown".into(),
-        }),
+        &mut |_plan| {
+            Err(LinuxError::Conflict {
+                resource: "nft table inet vpn_relay".into(),
+                details: "ownership unknown".into(),
+            })
+        },
         &mut |_payload| {
             submissions += 1;
             Ok(())
@@ -1365,6 +1387,14 @@ fn nft_json_batch_builder_creates_missing_table_without_delete() {
     );
     assert_eq!(objects[0]["add"]["table"]["family"], "inet");
     assert_eq!(objects[0]["add"]["table"]["name"], "vpn_relay");
+    assert!(objects.iter().any(|object| {
+        object["add"]["chain"]["name"] == "vpn_relay_owner"
+    }));
+    assert!(objects.iter().any(|object| {
+        object["add"]["rule"]["chain"] == "vpn_relay_owner"
+            && object["add"]["rule"]["comment"] == "managed by vpn-relay"
+            && object["add"]["rule"]["expr"][0].get("counter").is_some()
+    }));
     assert!(objects.iter().all(|object| object.get("delete").is_none()));
 }
 
@@ -1384,6 +1414,13 @@ fn nft_json_batch_builder_deletes_owned_table_before_recreating_it() {
     );
     assert_eq!(objects[1]["add"]["table"]["family"], "inet");
     assert_eq!(objects[1]["add"]["table"]["name"], "vpn_relay");
+    assert!(objects.iter().any(|object| {
+        object["add"]["chain"]["name"] == "vpn_relay_owner"
+    }));
+    assert!(objects.iter().any(|object| {
+        object["add"]["rule"]["chain"] == "vpn_relay_owner"
+            && object["add"]["rule"]["comment"] == "managed by vpn-relay"
+    }));
     assert_eq!(
         objects
             .iter()

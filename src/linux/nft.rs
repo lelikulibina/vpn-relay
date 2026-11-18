@@ -39,6 +39,30 @@ pub(super) fn build_nftables_batch(
             stderr: "serialized ruleset has no nftables object array".into(),
         })?;
 
+    // Table comments are not part of the nftables JSON TABLE schema in
+    // nftables 1.0.2. Keep the table comment for newer releases, and add a
+    // dedicated, inert chain/rule whose RULE comment survives JSON round-trips.
+    objects.push(serde_json::json!({
+        "add": {
+            "chain": {
+                "family": plan.nft_family,
+                "table": plan.nft_table,
+                "name": OWNER_CHAIN,
+            }
+        }
+    }));
+    objects.push(serde_json::json!({
+        "add": {
+            "rule": {
+                "family": plan.nft_family,
+                "table": plan.nft_table,
+                "chain": OWNER_CHAIN,
+                "expr": [{"counter": null}],
+                "comment": OWNER_MARKER,
+            }
+        }
+    }));
+
     if replace_owned {
         objects.insert(
             0,
@@ -56,29 +80,64 @@ pub(super) fn build_nftables_batch(
     Ok(batch)
 }
 
-/// Return true only when the nftables table object itself carries our ownership marker.
+const OWNER_CHAIN: &str = "vpn_relay_owner";
+const OWNER_MARKER: &str = "managed by vpn-relay";
+
+/// Return true only when the exact table has either a legacy table comment or
+/// the dedicated owner chain with its marked counter rule.
 pub(super) fn table_is_owned(json: &str, family: &str, name: &str) -> bool {
     let Ok(document) = serde_json::from_str::<Value>(json) else {
         return false;
     };
-    document
-        .get("nftables")
-        .and_then(Value::as_array)
-        .is_some_and(|items| {
-            items.iter().any(|item| {
-                let Some(table) = item.get("table") else {
-                    return false;
-                };
-                table.get("family").and_then(Value::as_str) == Some(family)
-                    && table.get("name").and_then(Value::as_str) == Some(name)
-                    && table.get("comment").and_then(Value::as_str) == Some("managed by vpn-relay")
+    let Some(items) = document.get("nftables").and_then(Value::as_array) else {
+        return false;
+    };
+
+    let table_exists = items.iter().any(|item| {
+        item.get("table").is_some_and(|table| {
+            table.get("family").and_then(Value::as_str) == Some(family)
+                && table.get("name").and_then(Value::as_str) == Some(name)
+        })
+    });
+    if !table_exists {
+        return false;
+    }
+
+    let legacy_marker = items.iter().any(|item| {
+        item.get("table").is_some_and(|table| {
+            table.get("family").and_then(Value::as_str) == Some(family)
+                && table.get("name").and_then(Value::as_str) == Some(name)
+                && table.get("comment").and_then(Value::as_str) == Some(OWNER_MARKER)
+        })
+    });
+    if legacy_marker {
+        return true;
+    }
+
+    let owner_chain_exists = items.iter().any(|item| {
+        item.get("chain").is_some_and(|chain| {
+            chain.get("family").and_then(Value::as_str) == Some(family)
+                && chain.get("table").and_then(Value::as_str) == Some(name)
+                && chain.get("name").and_then(Value::as_str) == Some(OWNER_CHAIN)
+        })
+    });
+    owner_chain_exists
+        && items.iter().any(|item| {
+            item.get("rule").is_some_and(|rule| {
+                rule.get("family").and_then(Value::as_str) == Some(family)
+                    && rule.get("table").and_then(Value::as_str) == Some(name)
+                    && rule.get("chain").and_then(Value::as_str) == Some(OWNER_CHAIN)
+                    && rule.get("comment").and_then(Value::as_str) == Some(OWNER_MARKER)
+                    && rule
+                        .get("expr")
+                        .and_then(Value::as_array)
+                        .is_some_and(|expr| expr.iter().any(|element| element.get("counter").is_some()))
             })
         })
 }
 
-/// Older nftables releases omit table comments from JSON output. Fall back to
-/// the human-readable representation, but accept only the table-level comment
-/// (four-space indentation), never a similarly named comment inside a chain.
+/// Legacy nftables releases may omit table comments from JSON output. Keep a
+/// text fallback for tables created before the dedicated JSON ownership marker.
 pub(super) fn table_is_owned_text(output: &str, family: &str, name: &str) -> bool {
     let expected_header = format!("table {family} {name} {{");
     let expected_comment = "comment \"managed by vpn-relay\"";
@@ -207,9 +266,8 @@ where
         return Ok(true);
     }
 
-    // nftables 1.0.2 (Ubuntu 22.04) accepts table comments but does not expose
-    // them in JSON. Require the exact table header and a top-level comment
-    // before considering the table daemon-owned.
+    // Preserve recognition of legacy tables whose only ownership marker is a
+    // table-level comment omitted by older nftables JSON output.
     let textual = get_text(plan)?;
     if table_is_owned_text(&textual, &plan.nft_family, &plan.nft_table) {
         Ok(true)
