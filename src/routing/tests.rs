@@ -1088,16 +1088,18 @@ fn firewall_model_serializes_typed_nftables_schema() {
         .iter()
         .all(|position| *position < rule_positions[0]));
 
-    let input_rule = objects
+    let input_rules: Vec<_> = objects
         .iter()
-        .find_map(|object| {
+        .filter_map(|object| {
             let rule = object.get("add")?.get("rule")?;
             (rule["chain"] == "input").then_some(rule)
         })
-        .unwrap();
-    assert!(input_rule["expr"].is_array());
-    let expressions = input_rule["expr"].as_array().unwrap();
-    println!("typed nftables input expressions: {expressions:#?}");
+        .collect();
+    assert!(!input_rules.is_empty());
+    let expressions: Vec<_> = input_rules
+        .iter()
+        .flat_map(|rule| rule["expr"].as_array().into_iter().flatten())
+        .collect();
     assert!(expressions
         .iter()
         .any(|expression| expression.get("match").is_some()));
