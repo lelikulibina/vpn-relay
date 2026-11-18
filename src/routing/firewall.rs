@@ -832,8 +832,8 @@ impl FirewallRuleset {
                 FirewallAction::Mangle { key, value } => json!({
                     "mangle": {
                         "key": match key {
-                            FirewallMangleKey::ConntrackMark => {"ct": {"key": "mark"}},
-                            FirewallMangleKey::MetaMark => {"meta": {"key": "mark"}},
+                            FirewallMangleKey::ConntrackMark => json!({"ct": {"key": "mark"}}),
+                            FirewallMangleKey::MetaMark => json!({"meta": {"key": "mark"}}),
                         },
                         "value": expression(value),
                     }
