@@ -1054,12 +1054,13 @@ fn firewall_model_preserves_numeric_identity_guards() {
             } if matches!(
                 left.as_ref(),
                 FirewallExpression::Meta(FirewallMetaKey::IifName | FirewallMetaKey::OifName)
-            ) => Some(interface.as_str()),
+            ) =>
+            {
+                Some(interface.as_str())
+            }
             _ => None,
         })
-        .filter(|interface| {
-            ["awg-primary", "awg-secondary", "wg-server"].contains(interface)
-        })
+        .filter(|interface| ["awg-primary", "awg-secondary", "wg-server"].contains(interface))
         .collect();
     assert_eq!(
         name_guard_order,
